@@ -2,8 +2,9 @@
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useProxiesStore, ProxyInfo } from '../stores/proxies.store';
+import PageShell from '../components/PageShell.vue';
 import ProxyList from '../components/ProxyList.vue';
-import AddProxyForm from '../components/AddProxyForm.vue'; 
+import AddProxyForm from '../components/AddProxyForm.vue';
 
 const { t } = useI18n();
 const proxiesStore = useProxiesStore();
@@ -11,7 +12,6 @@ const proxiesStore = useProxiesStore();
 const showForm = ref(false);
 const editingProxy = ref<ProxyInfo | null>(null);
 
-// 组件挂载时获取代理列表
 onMounted(() => {
   proxiesStore.fetchProxies();
 });
@@ -42,21 +42,18 @@ const closeForm = () => {
 </script>
 
 <template>
-  <div class="p-4 bg-background text-foreground"> <!-- Outer container with padding -->
-    <div class="max-w-6xl mx-auto"> <!-- Inner container for max-width and centering -->
-      <h2 class="text-xl font-semibold text-foreground mb-4 pb-2 border-b border-border"> <!-- Title styling consistent with Notifications -->
-        {{ t('proxies.title') }}
-      </h2>
-
-      <button
-        @click="openAddForm"
-        v-if="!showForm"
-        class="px-4 py-2 bg-button text-button-text rounded hover:bg-button-hover mb-4 inline-flex items-center text-sm font-medium"
-      > <!-- Button styling consistent with Notifications -->
+  <PageShell
+    :title="t('proxies.title')"
+    :subtitle="t('proxies.controlCenterSubtitle', '在统一的控制中心里管理代理入口、账号和转发策略。')"
+  >
+    <template #actions>
+      <el-button type="primary" @click="openAddForm">
+        <i class="fas fa-plus mr-2"></i>
         {{ t('proxies.addProxy') }}
-      </button>
+      </el-button>
+    </template>
 
-      <!-- 添加/编辑代理表单 -->
+    <el-card shadow="never" class="control-panel">
       <AddProxyForm
         v-if="showForm"
         :proxy-to-edit="editingProxy"
@@ -65,13 +62,7 @@ const closeForm = () => {
         @proxy-updated="handleProxyUpdated"
       />
 
-      <!-- 代理列表 -->
       <ProxyList @edit-proxy="handleEditRequest" />
-    </div>
-  </div>
+    </el-card>
+  </PageShell>
 </template>
-
-<style scoped>
-/* Remove scoped styles previously handled by Tailwind */
-/* .proxies-view, button, button:hover, button:disabled, .placeholder-form, .placeholder-list rules are removed */
-</style>

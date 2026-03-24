@@ -45,3 +45,9 @@
 依赖: workspace-root, backend, remote-gateway, vue-router, pinia
 被依赖: 无
 ```
+
+## 最近变更
+
+- 2026-03-25: 前端主站视觉语言统一切换为 `Slate Control Center`，新增 `PageShell.vue` 与 `AuthPanelLayout.vue` 作为主要页面和认证入口的统一壳层。
+- 2026-03-25: `/workspace` 继续保持“三栏工作台”结构，但左侧 `Workbench` 与右侧 `StatusMonitor` 已重做为更现代的 Element Plus 控制中心风格；状态监控保留并展示开机累计上/下行流量。
+- 2026-03-25: `Dashboard / Settings / Login / Setup / Notifications / Proxies / Audit Logs` 已统一接入新的卡片化表达、控制区和统计信息风格，后续同类页面优先复用公共壳层而不是单页散落自定义布局。

@@ -743,7 +743,7 @@ watchEffect(() => {
 .terminal-inner-container :deep(.xterm),
 .terminal-inner-container :deep(.xterm-screen),
 .terminal-inner-container :deep(.xterm-viewport) {
-  cursor: default !important;
+  cursor: text !important;
 }
 
 .terminal-inner-container :deep(.xterm .xterm-cursor-pointer) {
