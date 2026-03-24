@@ -1,34 +1,204 @@
+<template>
+  <!-- 根元素，包含内边距、背景、边框和文本样式 -->
+  <div class="status-monitor p-4 bg-background text-foreground h-full overflow-y-auto text-sm" :class="{ 'bg-header': !activeSessionId }">
+  <h4 v-if="activeSessionId" class="mt-0 mb-4 border-b border-border pb-2 text-base font-medium">
+    {{ t('statusMonitor.title') }}
+  </h4>
+
+  <!-- 无活动会话状态 -->
+  <div v-if="!activeSessionId" class="no-session-status flex flex-col items-center justify-center text-center text-text-secondary mt-4 h-full">
+     <i class="fas fa-plug text-4xl mb-3 text-text-secondary"></i>
+     <span class="text-lg font-medium mb-2">{{ t('layout.noActiveSession.title') }}</span>
+  </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="currentStatusError" class="status-error flex flex-col items-center justify-center text-center text-red-500 mt-4 h-full">
+       <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+       <span>{{ t('statusMonitor.errorPrefix') }} {{ currentStatusError }}</span>
+    </div>
+
+    <!-- 加载状态 -->
+    <div v-else-if="!currentServerStatus" class="loading-status flex flex-col items-center justify-center text-center text-text-secondary mt-4 h-full">
+      <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+      <span>{{ t('statusMonitor.loading') }}</span>
+    </div>
+
+    <!-- 状态网格 -->
+    <div v-else class="status-grid grid gap-3">
+      <!-- IP 地址 (如果启用) -->
+      <div v-if="statusMonitorShowIpBoolean && activeSessionId && sessionIpAddress" class="status-item grid grid-cols-[auto_1fr] items-center gap-3">
+        <label class="font-semibold text-text-secondary text-left whitespace-nowrap">IP:</label>
+        <div class="flex items-center">
+          <span
+            class="ip-address-value truncate text-left cursor-pointer hover:text-primary transition-colors"
+            :title="sessionIpAddress"
+            @click="copyIpToClipboard(sessionIpAddress)">
+            {{ sessionIpAddress }}
+          </span>
+        </div>
+      </div>
+
+      <!-- CPU 型号 -->
+      <div class="status-item grid grid-cols-[auto_1fr] items-center gap-3">
+        <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.cpuModelLabel') }}</label>
+        <span class="cpu-model-value truncate text-left" :title="displayCpuModel">{{ displayCpuModel }}</span>
+      </div>
+
+      <!-- 操作系统名称 -->
+      <div class="status-item grid grid-cols-[auto_1fr] items-center gap-3">
+        <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.osLabel') }}</label>
+        <span class="os-name-value truncate text-left" :title="displayOsName">{{ displayOsName }}</span>
+      </div>
+
+      <!-- 资源使用率分组 -->
+      <div class="resource-monitor-group grid gap-3 mb-3">
+        <!-- CPU 使用率 -->
+        <!-- 设置第一列固定宽度为 80px -->
+        <div class="status-item grid grid-cols-[40px_1fr] items-center gap-3">
+          <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.cpuLabel') }}</label>
+          <div class="value-wrapper flex items-center gap-2">
+            <el-progress
+              :percentage="displayCpuPercent"
+              :stroke-width="16"
+              color="#3b82f6"
+              :show-text="true"
+              :text-inside="true"
+              :format="formatPercentageText"
+              class="themed-progress flex-grow" :class="{ 'no-transition': isSwitchingSession }"
+            />
+            <!-- 移除 w-12 和 text-right 以实现左对齐 -->
+          </div>
+        </div>
+
+        <!-- 内存使用率 -->
+        <!-- 设置第一列固定宽度为 80px -->
+        <div class="status-item grid grid-cols-[40px_1fr] items-center gap-3">
+          <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.memoryLabel') }}</label>
+          <div class="value-wrapper flex items-center gap-2">
+            <el-progress
+              :percentage="displayMemPercent"
+              :stroke-width="16"
+              color="#22c55e"
+              :show-text="true"
+              :text-inside="true"
+              :format="formatPercentageText"
+              class="themed-progress flex-grow" :class="{ 'no-transition': isSwitchingSession }"
+            />
+            <span class="mem-disk-details font-mono text-xs whitespace-nowrap text-left">{{ memDisplay }}</span>
+          </div>
+        </div>
+
+         <!-- swap -->
+         <!-- 设置第一列固定宽度为 80px -->
+         <div class="status-item grid grid-cols-[40px_1fr] items-center gap-3">
+          <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.swapLabel') }}</label>
+          <div class="value-wrapper flex items-center gap-2">
+            <el-progress
+              :percentage="displaySwapPercent"
+              :stroke-width="16"
+              :color="(currentServerStatus?.swapPercent ?? 0) > 0 ? '#eab308' : '#6b7280'"
+              :show-text="true"
+              :text-inside="true"
+              :format="formatPercentageText"
+              class="themed-progress flex-grow" :class="{ 'no-transition': isSwitchingSession }"
+            />
+            <span class="mem-disk-details font-mono text-xs whitespace-nowrap text-left">{{ swapDisplay }}</span>
+          </div>
+        </div>
+
+        <!-- 磁盘使用率 -->
+        <!-- 设置第一列固定宽度为 80px -->
+        <div class="status-item grid grid-cols-[40px_1fr] items-center gap-3">
+          <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.diskLabel') }}</label>
+          <div class="value-wrapper flex items-center gap-2">
+            <el-progress
+              :percentage="displayDiskPercent"
+              :stroke-width="16"
+              color="#a855f7"
+              :show-text="true"
+              :text-inside="true"
+              :format="formatPercentageText"
+              class="themed-progress flex-grow" :class="{ 'no-transition': isSwitchingSession }"
+            />
+            <span class="mem-disk-details font-mono text-xs whitespace-nowrap text-left">{{ diskDisplay }}</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+     <!-- 网络速率，仅在有活动会话且有数据时显示 -->
+     <div v-if="activeSessionId && currentServerStatus" class="status-item grid grid-cols-[auto_1fr] items-center gap-3 mt-2">
+          <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.networkLabel') }} ({{ currentServerStatus?.netInterface || '...' }}):</label>
+          <div class="network-values flex items-center justify-start gap-4"> <!-- 减小间距 -->
+            <span class="rate down inline-flex items-center gap-1 text-green-500 text-xs whitespace-nowrap">
+              <i class="fas fa-arrow-down w-3 text-center"></i> <!-- Font Awesome 图标 -->
+              <span class="font-mono">{{ formatBytesPerSecond(currentServerStatus?.netRxRate) }}</span>
+            </span>
+            <span class="rate up inline-flex items-center gap-1 text-orange-500 text-xs whitespace-nowrap">
+               <i class="fas fa-arrow-up w-3 text-center"></i> <!-- Font Awesome 图标 -->
+               <span class="font-mono">{{ formatBytesPerSecond(currentServerStatus?.netTxRate) }}</span>
+
+            </span>
+          </div>
+
+      </div>
+      <div v-if="activeSessionId && currentServerStatus" class="status-item grid grid-cols-[auto_1fr] items-start gap-3 mt-2">
+        <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.totalTrafficLabel') }}:</label>
+        <div class="flex flex-col gap-1.5 text-xs">
+          <span class="inline-flex items-center gap-2 whitespace-nowrap text-green-500">
+            <i class="fas fa-arrow-down w-3 text-center"></i>
+            <span>{{ t('statusMonitor.downloadLabel') }}</span>
+            <span class="font-mono text-foreground">{{ formatBytes(currentServerStatus?.netRxTotalBytes) }}</span>
+          </span>
+          <span class="inline-flex items-center gap-2 whitespace-nowrap text-orange-500">
+            <i class="fas fa-arrow-up w-3 text-center"></i>
+            <span>{{ t('statusMonitor.uploadLabel') }}</span>
+            <span class="font-mono text-foreground">{{ formatBytes(currentServerStatus?.netTxTotalBytes) }}</span>
+          </span>
+        </div>
+      </div>
+<!-- 图表组件 -->
+      <!-- 仅当有活动会话且有数据时渲染图表 -->
+      <StatusCharts v-if="activeSessionId && currentServerStatus" :server-status="currentServerStatus" :active-session-id="activeSessionId" />
+  </div>
+</template>
+
+
 <script setup lang="ts">
-import { ref, computed, watch, type PropType, nextTick } from 'vue';
-import { storeToRefs } from 'pinia';
+
+import { ref, computed, watch, type PropType, nextTick } from 'vue'; 
+import { ElProgress } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import StatusCharts from './StatusCharts.vue';
-import { useSessionStore } from '../stores/session.store';
-import { useSettingsStore } from '../stores/settings.store';
-import { useConnectionsStore } from '../stores/connections.store';
-import { useUiNotificationsStore } from '../stores/uiNotifications.store';
+import { useSessionStore } from '../stores/session.store'; // 注入 sessionStore
+import { storeToRefs } from 'pinia'; // 导入 storeToRefs
+import { useSettingsStore } from '../stores/settings.store'; //  导入设置 store
+import { useConnectionsStore } from '../stores/connections.store'; // 导入连接 store
+import { useUiNotificationsStore } from '../stores/uiNotifications.store'; // + 导入通知 store
 import type { ServerStatus } from '../types/server.types';
 
 const { t } = useI18n();
 const sessionStore = useSessionStore();
-const settingsStore = useSettingsStore();
-const connectionsStore = useConnectionsStore();
-const uiNotificationsStore = useUiNotificationsStore();
-
-const { sessions } = storeToRefs(sessionStore);
-const { statusMonitorShowIpBoolean } = storeToRefs(settingsStore);
+const settingsStore = useSettingsStore(); //  实例化设置 store
+const connectionsStore = useConnectionsStore(); // 实例化连接 store
+const uiNotificationsStore = useUiNotificationsStore(); // + 实例化通知 store
+const { sessions } = storeToRefs(sessionStore); // 获取响应式的 sessions
+const { statusMonitorShowIpBoolean } = storeToRefs(settingsStore); //  获取 IP 显示设置
 const isSwitchingSession = ref(false);
 
+const formatPercentageText = (percentage: number): string => `${Math.round(percentage)}%`;
+
+// --- Props ---
 const props = defineProps({
   activeSessionId: {
     type: String as PropType<string | null>,
-    required: false,
+    required: false, // 允许为 null
     default: null,
   },
 });
 
-const formatPercentageText = (percentage: number): string => `${Math.round(percentage)}%`;
-
+// --- Computed properties to get current session data ---
 const currentSessionState = computed(() => {
   return props.activeSessionId ? sessions.value.get(props.activeSessionId) : null;
 });
@@ -37,546 +207,167 @@ const currentServerStatus = computed<ServerStatus | null>(() => {
   return currentSessionState.value?.statusMonitorManager?.serverStatus?.value ?? null;
 });
 
-const displayCpuPercent = computed(() => currentServerStatus.value?.cpuPercent ?? 0);
-const displayMemPercent = computed(() => currentServerStatus.value?.memPercent ?? 0);
-const displaySwapPercent = computed(() => currentServerStatus.value?.swapPercent ?? 0);
-const displayDiskPercent = computed(() => currentServerStatus.value?.diskPercent ?? 0);
+// --- 计算属性，用于绑定到进度条宽度 ---
+// 始终返回当前状态的百分比。动画由 CSS 类控制。
+const displayCpuPercent = computed(() => {
+  return currentServerStatus.value?.cpuPercent ?? 0;
+});
+
+const displayMemPercent = computed(() => {
+  return currentServerStatus.value?.memPercent ?? 0;
+});
+
+const displaySwapPercent = computed(() => {
+  return currentServerStatus.value?.swapPercent ?? 0;
+});
+
+const displayDiskPercent = computed(() => {
+  return currentServerStatus.value?.diskPercent ?? 0;
+});
 
 const currentStatusError = computed<string | null>(() => {
   return currentSessionState.value?.statusMonitorManager?.statusError?.value ?? null;
 });
 
+// --- 缓存逻辑保持不变 ---
 const cachedCpuModel = ref<string | null>(null);
 const cachedOsName = ref<string | null>(null);
 
-watch(
-  currentServerStatus,
-  (newData) => {
-    if (newData?.cpuModel) {
+// --- Watcher for caching CPU Model and OS Name ---
+// 现在监听 currentServerStatus
+watch(currentServerStatus, (newData) => {
+  if (newData) {
+    if (newData.cpuModel !== undefined && newData.cpuModel !== null && newData.cpuModel !== '') {
       cachedCpuModel.value = newData.cpuModel;
     }
-    if (newData?.osName) {
+    if (newData.osName !== undefined && newData.osName !== null && newData.osName !== '') {
       cachedOsName.value = newData.osName;
     }
-  },
-  { immediate: true }
-);
-
-watch(
-  () => props.activeSessionId,
-  async (newId, oldId) => {
-    if (newId !== oldId) {
-      isSwitchingSession.value = true;
-      await nextTick();
-      isSwitchingSession.value = false;
-    }
   }
-);
+}, { immediate: true });
 
+// --- 监听 activeSessionId 变化以处理会话切换状态 ---
+watch(() => props.activeSessionId, async (newId, oldId) => {
+  if (newId !== oldId) {
+    isSwitchingSession.value = true;
+    await nextTick(); // 等待DOM更新（currentServerStatus已改变，displayPercent们会返回0）
+    isSwitchingSession.value = false;
+  }
+});
+
+// --- Computed properties for display ---
 const displayCpuModel = computed(() => {
+  // 使用 currentServerStatus
   return (currentServerStatus.value?.cpuModel ?? cachedCpuModel.value) || t('statusMonitor.notAvailable');
 });
 
 const displayOsName = computed(() => {
+  // 使用 currentServerStatus
   return (currentServerStatus.value?.osName ?? cachedOsName.value) || t('statusMonitor.notAvailable');
 });
 
 const formatBytesPerSecond = (bytes?: number): string => {
-  if (bytes === undefined || bytes === null || Number.isNaN(bytes)) return t('statusMonitor.notAvailable');
-  if (bytes < 1024) return `${bytes} ${t('statusMonitor.bytesPerSecond')}`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} ${t('statusMonitor.kiloBytesPerSecond')}`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} ${t('statusMonitor.megaBytesPerSecond')}`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${t('statusMonitor.gigaBytesPerSecond')}`;
+    if (bytes === undefined || bytes === null || isNaN(bytes)) return t('statusMonitor.notAvailable');
+    if (bytes < 1024) return `${bytes} ${t('statusMonitor.bytesPerSecond')}`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} ${t('statusMonitor.kiloBytesPerSecond')}`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} ${t('statusMonitor.megaBytesPerSecond')}`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${t('statusMonitor.gigaBytesPerSecond')}`;
 };
 
 const formatBytes = (bytes?: number): string => {
-  if (bytes === undefined || bytes === null || Number.isNaN(bytes)) return t('statusMonitor.notAvailable');
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} ${t('statusMonitor.megaBytes')}`;
-  if (bytes < 1024 * 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${t('statusMonitor.gigaBytes')}`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
+    if (bytes === undefined || bytes === null || isNaN(bytes)) return t('statusMonitor.notAvailable');
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} ${t('statusMonitor.megaBytes')}`;
+    if (bytes < 1024 * 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${t('statusMonitor.gigaBytes')}`;
+    return `${(bytes / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
 };
 
 const formatKbToGb = (kb?: number): string => {
-  if (kb === undefined || kb === null) return t('statusMonitor.notAvailable');
-  if (kb === 0) return `0.0 ${t('statusMonitor.gigaBytes')}`;
-  const gb = kb / 1024 / 1024;
-  return `${gb.toFixed(1)} ${t('statusMonitor.gigaBytes')}`;
+    if (kb === undefined || kb === null) return t('statusMonitor.notAvailable');
+    if (kb === 0) return `0.0 ${t('statusMonitor.gigaBytes')}`;
+    const gb = kb / 1024 / 1024;
+    return `${gb.toFixed(1)} ${t('statusMonitor.gigaBytes')}`;
 };
 
+// 辅助函数，用于在需要时将 MB 格式化为 GB
 const formatMemorySize = (mb?: number): string => {
-  if (mb === undefined || mb === null || Number.isNaN(mb)) return t('statusMonitor.notAvailable');
-  if (mb < 1024) {
-    const value = Number.isInteger(mb) ? mb : mb.toFixed(1);
-    return `${value} ${t('statusMonitor.megaBytes')}`;
-  }
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)} ${t('statusMonitor.gigaBytes')}`;
+    if (mb === undefined || mb === null || isNaN(mb)) return t('statusMonitor.notAvailable');
+    if (mb < 1024) {
+        const value = Number.isInteger(mb) ? mb : mb.toFixed(1);
+        return `${value} ${t('statusMonitor.megaBytes')}`;
+    } else {
+        const gb = mb / 1024;
+        return `${gb.toFixed(1)} ${t('statusMonitor.gigaBytes')}`;
+    }
 };
 
 const memDisplay = computed(() => {
-  const data = currentServerStatus.value;
-  if (!data || data.memUsed === undefined || data.memTotal === undefined) return t('statusMonitor.notAvailable');
-  return `${formatMemorySize(data.memUsed)} / ${formatMemorySize(data.memTotal)}`;
+    const data = currentServerStatus.value; // 使用 currentServerStatus
+    if (!data || data.memUsed === undefined || data.memTotal === undefined) return t('statusMonitor.notAvailable');
+    return `${formatMemorySize(data.memUsed)} / ${formatMemorySize(data.memTotal)}`;
 });
 
 const diskDisplay = computed(() => {
-  const data = currentServerStatus.value;
-  if (!data || data.diskUsed === undefined || data.diskTotal === undefined) return t('statusMonitor.notAvailable');
-  return `${formatKbToGb(data.diskUsed)} / ${formatKbToGb(data.diskTotal)}`;
+    const data = currentServerStatus.value; // 使用 currentServerStatus
+    if (!data || data.diskUsed === undefined || data.diskTotal === undefined) return t('statusMonitor.notAvailable');
+    return `${formatKbToGb(data.diskUsed)} / ${formatKbToGb(data.diskTotal)}`;
 });
 
 const swapDisplay = computed(() => {
-  const data = currentServerStatus.value;
-  const used = data?.swapUsed ?? 0;
-  const total = data?.swapTotal ?? 0;
-  if (total === 0) return t('statusMonitor.swapNotAvailable');
-  return `${formatMemorySize(used)} / ${formatMemorySize(total)}`;
+    const data = currentServerStatus.value; // 使用 currentServerStatus
+    const used = data?.swapUsed ?? 0;
+    const total = data?.swapTotal ?? 0;
+    const percentVal = data?.swapPercent ?? 0;
+
+    // 仅当交换空间总量 > 0 时显示详细信息
+    if (total === 0) {
+        return t('statusMonitor.swapNotAvailable'); // 或更具体的消息
+    }
+
+    return `${formatMemorySize(used)} / ${formatMemorySize(total)}`;
 });
 
 const sessionIpAddress = computed(() => {
   const sessionState = currentSessionState.value;
-  if (sessionState?.connectionId) {
+  if (sessionState && sessionState.connectionId) {
+    //  直接从 connectionsStore 的 connections 数组中查找
     const connectionIdAsNumber = parseInt(sessionState.connectionId, 10);
-    if (Number.isNaN(connectionIdAsNumber)) return null;
-    const connectionInfo = connectionsStore.connections.find((conn) => conn.id === connectionIdAsNumber);
+    if (isNaN(connectionIdAsNumber)) {
+      return null; // 如果 connectionId 不是有效的数字，则返回 null
+    }
+    const connectionInfo = connectionsStore.connections.find(conn => conn.id === connectionIdAsNumber);
     return connectionInfo?.host || null;
   }
   return null;
-});
-
-const overviewStats = computed(() => {
-  if (!currentServerStatus.value) return [];
-
-  return [
-    {
-      label: t('statusMonitor.cpuLabel'),
-      value: `${Math.round(displayCpuPercent.value)}%`,
-      meta: displayCpuModel.value,
-      color: '#3b82f6',
-    },
-    {
-      label: t('statusMonitor.memoryLabel'),
-      value: memDisplay.value,
-      meta: `${Math.round(displayMemPercent.value)}%`,
-      color: '#22c55e',
-    },
-    {
-      label: t('statusMonitor.diskLabel'),
-      value: diskDisplay.value,
-      meta: `${Math.round(displayDiskPercent.value)}%`,
-      color: '#a855f7',
-    },
-  ];
 });
 
 const copyIpToClipboard = async (ipAddress: string | null) => {
   if (!ipAddress) return;
   try {
     await navigator.clipboard.writeText(ipAddress);
-    uiNotificationsStore.showSuccess(t('common.copied', '已复制'));
+    uiNotificationsStore.showSuccess(t('common.copied', '已复制!')); 
   } catch (err) {
     console.error('Failed to copy IP address: ', err);
     uiNotificationsStore.showError(t('statusMonitor.copyIpError', '复制 IP 失败'));
   }
 };
+
 </script>
 
-<template>
-  <section class="status-shell">
-    <header class="status-shell__header">
-      <div>
-        <div class="status-shell__eyebrow">
-          <el-tag round effect="light" type="success">
-            {{ t('statusMonitor.title', '服务器状态') }}
-          </el-tag>
-          <span v-if="activeSessionId" class="status-shell__session">{{ activeSessionId }}</span>
-        </div>
-        <h3>{{ t('statusMonitor.title', '服务器状态') }}</h3>
-        <p>{{ displayOsName }}</p>
-      </div>
-    </header>
-
-    <div v-if="!activeSessionId" class="status-shell__empty">
-      <el-empty :description="t('layout.noActiveSession.title', '没有活动的会话')">
-        <template #image>
-          <i class="fas fa-plug text-4xl text-text-secondary"></i>
-        </template>
-      </el-empty>
-    </div>
-
-    <el-alert
-      v-else-if="currentStatusError"
-      :title="`${t('statusMonitor.errorPrefix')} ${currentStatusError}`"
-      type="error"
-      :closable="false"
-      show-icon
-    />
-
-    <div v-else-if="!currentServerStatus" class="status-shell__empty">
-      <el-skeleton :rows="7" animated />
-    </div>
-
-    <div v-else class="status-shell__body">
-      <div class="control-stat-grid">
-        <div v-for="stat in overviewStats" :key="stat.label" class="control-stat-card">
-          <span class="control-stat-card__label">{{ stat.label }}</span>
-          <span class="control-stat-card__value">{{ stat.value }}</span>
-          <span class="control-stat-card__meta">{{ stat.meta }}</span>
-        </div>
-      </div>
-
-      <el-card shadow="never" class="status-section">
-        <template #header>
-          <div class="status-section__title">{{ t('statusMonitor.title', '服务器状态') }}</div>
-        </template>
-
-        <div class="status-row" v-if="statusMonitorShowIpBoolean && sessionIpAddress">
-          <span>{{ t('statusMonitor.ipLabel', 'IP 地址') }}</span>
-          <button class="status-link" @click="copyIpToClipboard(sessionIpAddress)">
-            {{ sessionIpAddress }}
-          </button>
-        </div>
-
-        <div class="status-row">
-          <span>{{ t('statusMonitor.cpuModelLabel') }}</span>
-          <strong>{{ displayCpuModel }}</strong>
-        </div>
-
-        <div class="status-row">
-          <span>{{ t('statusMonitor.osLabel') }}</span>
-          <strong>{{ displayOsName }}</strong>
-        </div>
-
-        <div class="status-metric">
-          <div class="status-metric__head">
-            <span>{{ t('statusMonitor.cpuLabel') }}</span>
-            <strong>{{ Math.round(displayCpuPercent) }}%</strong>
-          </div>
-          <el-progress
-            :percentage="displayCpuPercent"
-            :stroke-width="14"
-            color="#3b82f6"
-            :show-text="false"
-            class="themed-progress"
-            :class="{ 'no-transition': isSwitchingSession }"
-          />
-        </div>
-
-        <div class="status-metric">
-          <div class="status-metric__head">
-            <span>{{ t('statusMonitor.memoryLabel') }}</span>
-            <strong>{{ memDisplay }}</strong>
-          </div>
-          <el-progress
-            :percentage="displayMemPercent"
-            :stroke-width="14"
-            color="#22c55e"
-            :show-text="false"
-            class="themed-progress"
-            :class="{ 'no-transition': isSwitchingSession }"
-          />
-        </div>
-
-        <div class="status-metric">
-          <div class="status-metric__head">
-            <span>{{ t('statusMonitor.swapLabel') }}</span>
-            <strong>{{ swapDisplay }}</strong>
-          </div>
-          <el-progress
-            :percentage="displaySwapPercent"
-            :stroke-width="14"
-            :color="(currentServerStatus?.swapPercent ?? 0) > 0 ? '#eab308' : '#94a3b8'"
-            :show-text="false"
-            class="themed-progress"
-            :class="{ 'no-transition': isSwitchingSession }"
-          />
-        </div>
-
-        <div class="status-metric">
-          <div class="status-metric__head">
-            <span>{{ t('statusMonitor.diskLabel') }}</span>
-            <strong>{{ diskDisplay }}</strong>
-          </div>
-          <el-progress
-            :percentage="displayDiskPercent"
-            :stroke-width="14"
-            color="#a855f7"
-            :show-text="false"
-            class="themed-progress"
-            :class="{ 'no-transition': isSwitchingSession }"
-          />
-        </div>
-      </el-card>
-
-      <el-card shadow="never" class="status-section">
-        <template #header>
-          <div class="status-section__title">{{ t('statusMonitor.networkLabel', '网络') }}</div>
-        </template>
-
-        <div class="network-grid">
-          <div class="network-card">
-            <span class="network-card__label">
-              <i class="fas fa-arrow-down"></i>
-              {{ t('statusMonitor.networkLabel') }} / RX
-            </span>
-            <strong>{{ formatBytesPerSecond(currentServerStatus?.netRxRate) }}</strong>
-            <small>{{ currentServerStatus?.netInterface || '--' }}</small>
-          </div>
-
-          <div class="network-card">
-            <span class="network-card__label">
-              <i class="fas fa-arrow-up"></i>
-              {{ t('statusMonitor.networkLabel') }} / TX
-            </span>
-            <strong>{{ formatBytesPerSecond(currentServerStatus?.netTxRate) }}</strong>
-            <small>{{ currentServerStatus?.netInterface || '--' }}</small>
-          </div>
-        </div>
-
-        <div class="traffic-summary">
-          <div class="traffic-summary__title">{{ t('statusMonitor.totalTrafficLabel', '开机累计流量') }}</div>
-          <div class="traffic-summary__items">
-            <div class="traffic-chip">
-              <span><i class="fas fa-arrow-down"></i>{{ t('statusMonitor.downloadLabel', '下行') }}</span>
-              <strong>{{ formatBytes(currentServerStatus?.netRxTotalBytes) }}</strong>
-            </div>
-            <div class="traffic-chip traffic-chip--upload">
-              <span><i class="fas fa-arrow-up"></i>{{ t('statusMonitor.uploadLabel', '上行') }}</span>
-              <strong>{{ formatBytes(currentServerStatus?.netTxTotalBytes) }}</strong>
-            </div>
-          </div>
-        </div>
-      </el-card>
-
-      <el-card shadow="never" class="status-section status-section--chart">
-        <template #header>
-          <div class="status-section__title">{{ t('statusMonitor.cpuUsageTitle', 'CPU 使用率') }}</div>
-        </template>
-        <StatusCharts :server-status="currentServerStatus" :active-session-id="activeSessionId" />
-      </el-card>
-    </div>
-  </section>
-</template>
-
 <style scoped>
-.status-shell {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 1rem;
-  border: 1px solid rgba(103, 124, 155, 0.18);
-  border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(243, 247, 252, 0.82));
-  box-shadow: var(--shadow-card);
-}
-
-.status-shell__header h3 {
-  margin: 0.8rem 0 0;
-  font-family: var(--font-family-display);
-  font-size: 1.2rem;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: var(--text-color);
-}
-
-.status-shell__header p {
-  margin: 0.55rem 0 0;
-  color: var(--text-color-secondary);
-  font-size: 0.84rem;
-}
-
-.status-shell__eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-}
-
-.status-shell__session {
-  color: var(--text-color-tertiary);
-  font-size: 0.74rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.status-shell__empty {
-  padding: 1rem 0;
-}
-
-.status-shell__body {
-  display: grid;
-  gap: 1rem;
-}
-
-.status-section {
-  border-radius: 22px;
-}
-
-.status-section__title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.status-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(103, 124, 155, 0.12);
-}
-
-.status-row:last-child {
-  border-bottom: 0;
-}
-
-.status-row span {
-  color: var(--text-color-secondary);
-  font-size: 0.82rem;
-}
-
-.status-row strong {
-  color: var(--text-color);
-  font-size: 0.86rem;
-  text-align: right;
-}
-
-.status-link {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-.status-metric {
-  margin-top: 1rem;
-}
-
-.status-metric__head {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.55rem;
-}
-
-.status-metric__head span {
-  color: var(--text-color-secondary);
-  font-size: 0.82rem;
-}
-
-.status-metric__head strong {
-  color: var(--text-color);
-  font-size: 0.82rem;
-}
-
-.network-grid {
-  display: grid;
-  gap: 0.85rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.network-card {
-  padding: 1rem;
-  border: 1px solid rgba(103, 124, 155, 0.14);
-  border-radius: 18px;
-  background: rgba(247, 250, 253, 0.9);
-}
-
-.network-card__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-color-tertiary);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.network-card strong {
-  display: block;
-  margin-top: 0.55rem;
-  color: var(--text-color);
-  font-size: 1rem;
-}
-
-.network-card small {
-  display: block;
-  margin-top: 0.4rem;
-  color: var(--text-color-secondary);
-}
-
-.traffic-summary {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(103, 124, 155, 0.12);
-}
-
-.traffic-summary__title {
-  color: var(--text-color-secondary);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.traffic-summary__items {
-  display: grid;
-  gap: 0.75rem;
-  margin-top: 0.8rem;
-}
-
-.traffic-chip {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.8rem 0.95rem;
-  border-radius: 18px;
-  background: rgba(24, 190, 120, 0.08);
-  color: #15915e;
-}
-
-.traffic-chip--upload {
-  background: rgba(249, 115, 22, 0.08);
-  color: #d97706;
-}
-
-.traffic-chip span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.82rem;
-}
-
-.traffic-chip strong {
-  color: var(--text-color);
-}
-
-.status-section--chart :deep(.el-card__body) {
-  min-height: 240px;
-}
-
 ::v-deep(.el-progress-bar__outer) {
-  background-color: rgba(226, 233, 244, 0.86) !important;
+  background-color: var(--header-bg-color) !important; 
 }
-
 ::v-deep(.themed-progress .el-progress-bar__inner) {
   transition: width 0.3s ease-in-out;
 }
-
 ::v-deep(.themed-progress.no-transition .el-progress-bar__inner) {
   transition: none !important;
 }
-
-@media (max-width: 960px) {
-  .network-grid {
-    grid-template-columns: 1fr;
-  }
+::v-deep(.el-progress-bar__innerText) {
+  font-size: 10px;
+  position: relative;
+  top: -0.5px;       
 }
 </style>

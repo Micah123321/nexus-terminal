@@ -1,51 +1,57 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { storeToRefs } from 'pinia';
-import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
-import { formatDistanceToNow } from 'date-fns';
-import { zhCN, enUS, ja } from 'date-fns/locale';
-import type { Locale } from 'date-fns';
-import AddConnectionForm from '../components/AddConnectionForm.vue';
-import PageShell from '../components/PageShell.vue';
+import AddConnectionForm from '../components/AddConnectionForm.vue'; 
 import { useConnectionsStore } from '../stores/connections.store';
 import { useAuditLogStore } from '../stores/audit.store';
 import { useSessionStore } from '../stores/session.store';
-import { useTagsStore } from '../stores/tags.store';
-import type { TagInfo } from '../stores/tags.store';
+import { useTagsStore } from '../stores/tags.store'; 
+import type { TagInfo } from '../stores/tags.store'; 
+
+import type { SortField, SortOrder } from '../stores/settings.store'; 
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import type { ConnectionInfo } from '../stores/connections.store';
-import type { SortField, SortOrder } from '../stores/settings.store';
+import { storeToRefs } from 'pinia'; 
+import { formatDistanceToNow } from 'date-fns';
+import { zhCN, enUS, ja } from 'date-fns/locale';
+import type { Locale } from 'date-fns';
 
 const { t, locale } = useI18n();
 const router = useRouter();
 const connectionsStore = useConnectionsStore();
 const auditLogStore = useAuditLogStore();
 const sessionStore = useSessionStore();
-const tagsStore = useTagsStore();
+const tagsStore = useTagsStore(); 
+
 
 const { connections, isLoading: isLoadingConnections } = storeToRefs(connectionsStore);
 const { logs: auditLogs, isLoading: isLoadingLogs, totalLogs } = storeToRefs(auditLogStore);
-const { tags, isLoading: isLoadingTags } = storeToRefs(tagsStore);
+const { tags, isLoading: isLoadingTags } = storeToRefs(tagsStore); 
+
+
 
 const LS_SORT_BY_KEY = 'dashboard_connections_sort_by';
 const LS_SORT_ORDER_KEY = 'dashboard_connections_sort_order';
-const LS_FILTER_TAG_KEY = 'dashboard_connections_filter_tag';
+const LS_FILTER_TAG_KEY = 'dashboard_connections_filter_tag'; 
 
-const localSortBy = ref<SortField>((localStorage.getItem(LS_SORT_BY_KEY) as SortField) || 'last_connected_at');
-const localSortOrder = ref<SortOrder>((localStorage.getItem(LS_SORT_ORDER_KEY) as SortOrder) || 'desc');
-
+// Initialize with localStorage values or defaults
+const localSortBy = ref<SortField>(localStorage.getItem(LS_SORT_BY_KEY) as SortField || 'last_connected_at');
+const localSortOrder = ref<SortOrder>(localStorage.getItem(LS_SORT_ORDER_KEY) as SortOrder || 'desc');
+// +++ 初始化标签筛选状态，从 localStorage 读取，注意类型转换 (修正 ref 初始化) +++
 const getInitialSelectedTagId = (): number | null => {
   const storedValue = localStorage.getItem(LS_FILTER_TAG_KEY);
+  // 如果存储的值是 'null' 字符串或空，则返回 null，否则解析为数字
   return storedValue && storedValue !== 'null' ? parseInt(storedValue, 10) : null;
 };
-
 const selectedTagId = ref<number | null>(getInitialSelectedTagId());
 const searchQuery = ref('');
+
+// +++ 控制添加/编辑表单的显示状态 +++
 const showAddEditConnectionForm = ref(false);
 const connectionToEdit = ref<ConnectionInfo | null>(null);
 
 const maxRecentLogs = 5;
-
+ 
 const sortOptions: { value: SortField; labelKey: string }[] = [
   { value: 'last_connected_at', labelKey: 'dashboard.sortOptions.lastConnected' },
   { value: 'name', labelKey: 'dashboard.sortOptions.name' },
@@ -54,114 +60,98 @@ const sortOptions: { value: SortField; labelKey: string }[] = [
   { value: 'created_at', labelKey: 'dashboard.sortOptions.created' },
 ];
 
+// +++ 修改计算属性，先筛选再排序 +++
 const filteredAndSortedConnections = computed(() => {
   const sortBy = localSortBy.value;
   const sortOrderVal = localSortOrder.value;
   const factor = sortOrderVal === 'desc' ? -1 : 1;
   const filterTagId = selectedTagId.value;
-  const query = searchQuery.value.toLowerCase().trim();
-
-  const filteredByTag =
-    filterTagId === null
-      ? [...connections.value]
-      : connections.value.filter((conn) => conn.tag_ids?.includes(filterTagId));
-
-  const searchedConnections = query
-    ? filteredByTag.filter((conn) => {
-        const nameMatch = conn.name?.toLowerCase().includes(query);
-        const usernameMatch = conn.username?.toLowerCase().includes(query);
-        const hostMatch = conn.host?.toLowerCase().includes(query);
-        const portMatch = conn.port?.toString().includes(query);
-        return nameMatch || usernameMatch || hostMatch || portMatch;
-      })
-    : filteredByTag;
-
+  const query = searchQuery.value.toLowerCase().trim(); // +++ 获取搜索查询 +++
+ 
+  // 1. Filter by selected tag
+  let filteredByTag = filterTagId === null
+    ? [...connections.value] // No tag selected, show all
+    : connections.value.filter(conn => conn.tag_ids?.includes(filterTagId));
+ 
+  // 2. Filter by search query
+  let searchedConnections = filteredByTag;
+  if (query) {
+    searchedConnections = filteredByTag.filter(conn => {
+      const nameMatch = conn.name?.toLowerCase().includes(query);
+      const usernameMatch = conn.username?.toLowerCase().includes(query);
+      const hostMatch = conn.host?.toLowerCase().includes(query);
+      const portMatch = conn.port?.toString().includes(query);
+      return nameMatch || usernameMatch || hostMatch || portMatch;
+    });
+  }
+ 
+  // 3. Sort the searched connections
   return searchedConnections.sort((a, b) => {
-    let valA: string | number;
-    let valB: string | number;
+    let valA: any;
+    let valB: any;
 
     switch (sortBy) {
       case 'name':
         valA = a.name || '';
         valB = b.name || '';
-        return String(valA).localeCompare(String(valB)) * factor;
+        return valA.localeCompare(valB) * factor;
       case 'type':
         valA = a.type || '';
         valB = b.type || '';
-        return String(valA).localeCompare(String(valB)) * factor;
+        return valA.localeCompare(valB) * factor;
       case 'created_at':
         valA = a.created_at ?? 0;
         valB = b.created_at ?? 0;
-        return (Number(valA) - Number(valB)) * factor;
+        return (valA - valB) * factor;
       case 'updated_at':
         valA = a.updated_at ?? 0;
         valB = b.updated_at ?? 0;
-        return (Number(valA) - Number(valB)) * factor;
+        return (valA - valB) * factor;
       case 'last_connected_at':
         valA = a.last_connected_at ?? (sortOrderVal === 'desc' ? -Infinity : Infinity);
         valB = b.last_connected_at ?? (sortOrderVal === 'desc' ? -Infinity : Infinity);
         if (valA === valB) return 0;
-        return Number(valA) < Number(valB) ? -1 * factor : 1 * factor;
+        if (valA < valB) return -1 * factor;
+        return 1 * factor;
       default:
         return 0;
     }
   });
 });
 
-const recentAuditLogs = computed(() => auditLogs.value.slice(0, maxRecentLogs));
-
-const dashboardStats = computed(() => {
-  const taggedConnections = connections.value.filter((conn) => (conn.tag_ids?.length ?? 0) > 0).length;
-  const sshConnections = connections.value.filter((conn) => conn.type === 'SSH').length;
-
-  return [
-    {
-      label: t('dashboard.connectionList', '连接列表'),
-      value: connections.value.length,
-      meta: `${filteredAndSortedConnections.value.length} ${t('common.filter', '筛选')} / ${sshConnections} SSH`,
-    },
-    {
-      label: t('settings.workspace.showConnectionTagsTitle', '连接标签'),
-      value: tags.value.length,
-      meta: `${taggedConnections} ${t('dashboard.filterTags.all', '已关联标签')}`,
-    },
-    {
-      label: t('dashboard.recentActivity', '最近活动'),
-      value: recentAuditLogs.value.length,
-      meta: `${totalLogs.value} ${t('auditLog.title', '审计日志')}`,
-    },
-    {
-      label: t('nav.terminal', '终端会话'),
-      value: sessionStore.sessions.size,
-      meta: t('workspace.workbench.label', '工作台已接入'),
-    },
-  ];
+const recentAuditLogs = computed(() => {
+  return auditLogs.value.slice(0, maxRecentLogs);
 });
 
 onMounted(async () => {
+  // Load saved preferences from localStorage (already done during ref initialization)
+
+  // Fetch connections if not already loaded
   if (connections.value.length === 0) {
     try {
       await connectionsStore.fetchConnections();
     } catch (error) {
-      console.error('Failed to load connections:', error);
+      console.error("加载连接列表失败:", error);
     }
   }
 
+  // Fetch recent audit logs
   try {
     await auditLogStore.fetchLogs({
-      page: 1,
-      limit: maxRecentLogs,
-      sortOrder: 'desc',
-      isDashboardRequest: true,
+        page: 1,
+        limit: maxRecentLogs,
+        sortOrder: 'desc',
+        isDashboardRequest: true
     });
   } catch (error) {
-    console.error('Failed to load audit logs:', error);
+    console.error("加载审计日志失败:", error);
   }
 
+  // +++ Fetch tags for filtering +++
   try {
     await tagsStore.fetchTags();
   } catch (error) {
-    console.error('Failed to load tags:', error);
+    console.error("加载标签列表失败:", error);
   }
 });
 
@@ -170,11 +160,13 @@ const connectTo = (connection: ConnectionInfo) => {
 };
 
 const toggleSortOrder = () => {
+  // Only update the local sort order state
   localSortOrder.value = localSortOrder.value === 'asc' ? 'desc' : 'asc';
 };
 
-const isAscending = computed(() => localSortOrder.value === 'asc');
+const isAscending = computed(() => localSortOrder.value === 'asc'); // Use local state
 
+// Watch for changes in local sort state and save to localStorage
 watch(localSortBy, (newValue) => {
   localStorage.setItem(LS_SORT_BY_KEY, newValue);
 });
@@ -183,7 +175,9 @@ watch(localSortOrder, (newValue) => {
   localStorage.setItem(LS_SORT_ORDER_KEY, newValue);
 });
 
+// +++ Watch for changes in selected tag and save to localStorage +++
 watch(selectedTagId, (newValue) => {
+  // Store 'null' as a string or the number
   localStorage.setItem(LS_FILTER_TAG_KEY, newValue === null ? 'null' : String(newValue));
 });
 
@@ -191,288 +185,239 @@ const dateFnsLocales: Record<string, Locale> = {
   'en-US': enUS,
   'zh-CN': zhCN,
   'ja-JP': ja,
-  en: enUS,
-  zh: zhCN,
-  ja,
+  // 主语言回退
+  'en': enUS,
+  'zh': zhCN,
+  'ja': ja,
 };
 
+// 修正函数签名，接受 number | null | undefined
 const formatRelativeTime = (timestampInSeconds: number | null | undefined): string => {
   if (!timestampInSeconds) return t('connections.status.never');
-
   try {
+    // 将秒级时间戳转换为毫秒级
     const timestampInMs = timestampInSeconds * 1000;
-    if (Number.isNaN(timestampInMs)) {
-      return String(timestampInSeconds);
+    // 检查转换后的值是否有效
+    if (isNaN(timestampInMs)) {
+        console.warn(`[Dashboard] Invalid timestamp received: ${timestampInSeconds}`);
+        return String(timestampInSeconds); // 返回原始值或错误提示
+    }
+    const date = new Date(timestampInMs);
+
+    const currentI18nLocale = locale.value; // 获取 vue-i18n 当前 locale (e.g., 'zh-CN')
+    const langPart = currentI18nLocale.split('-')[0]; // 获取主语言部分 (e.g., 'zh')
+
+    // 1. 尝试精确匹配 (e.g., 'zh-CN' -> zhCN)
+    let targetDateFnsLocale = dateFnsLocales[currentI18nLocale];
+
+    // 2. 如果无精确匹配，尝试匹配主语言 (e.g., 'zh' -> zhCN)
+    if (!targetDateFnsLocale) {
+      targetDateFnsLocale = dateFnsLocales[langPart];
     }
 
-    const date = new Date(timestampInMs);
-    const currentI18nLocale = locale.value;
-    const langPart = currentI18nLocale.split('-')[0];
-    const targetLocale = dateFnsLocales[currentI18nLocale] || dateFnsLocales[langPart] || enUS;
+    // 3. 如果仍然找不到，回退到默认 enUS
+    if (!targetDateFnsLocale) {
+      console.warn(`[Dashboard] date-fns locale not found for ${currentI18nLocale} or ${langPart}. Falling back to en-US.`);
+      targetDateFnsLocale = enUS; // 默认回退到 enUS
+    }
 
-    return formatDistanceToNow(date, { addSuffix: true, locale: targetLocale });
-  } catch (error) {
-    console.error('Failed to format date:', error);
-    return String(timestampInSeconds);
+    return formatDistanceToNow(date, { addSuffix: true, locale: targetDateFnsLocale });
+  } catch (e) {
+    console.error("格式化日期失败:", e);
+    return String(timestampInSeconds); // 出错时返回原始字符串
   }
 };
 
 const getActionTranslation = (actionType: string): string => {
+  // 尝试从 i18n 获取翻译，如果找不到则返回原始 actionType
   const key = `auditLog.actions.${actionType}`;
   const translated = t(key);
+  // 如果翻译结果等于 key 本身，说明没有找到翻译
   return translated === key ? actionType : translated;
 };
 
+// 辅助函数：判断活动类型是否表示失败
 const isFailedAction = (actionType: string): boolean => {
   const lowerCaseAction = actionType.toLowerCase();
+  // 检查常见的失败关键词
   return lowerCaseAction.includes('fail') || lowerCaseAction.includes('error') || lowerCaseAction.includes('denied');
 };
 
+// +++ 恢复：根据 tag_ids 获取标签名称数组 +++
 const getTagNames = (tagIds: number[] | undefined): string[] => {
   if (!tagIds || tagIds.length === 0) {
     return [];
   }
-
   const allTags = tags.value as TagInfo[];
   return tagIds
-    .map((id) => allTags.find((tag) => tag.id === id)?.name)
-    .filter((name): name is string => Boolean(name));
+    .map(id => allTags.find(tag => tag.id === id)?.name)
+    .filter((name): name is string => !!name); // 过滤掉未找到的标签并确保类型为 string
 };
 
+// +++ 打开添加表单 +++
 const openAddConnectionForm = () => {
   connectionToEdit.value = null;
   showAddEditConnectionForm.value = true;
 };
 
+// +++ 打开编辑表单 +++
 const openEditConnectionForm = (conn: ConnectionInfo) => {
   connectionToEdit.value = conn;
   showAddEditConnectionForm.value = true;
 };
 
+// +++ 处理表单关闭事件 +++
 const handleFormClose = () => {
   showAddEditConnectionForm.value = false;
-  connectionToEdit.value = null;
+  connectionToEdit.value = null; // 清除编辑状态
 };
 
+// +++ 处理连接添加/更新成功事件 +++
 const handleConnectionModified = async () => {
   showAddEditConnectionForm.value = false;
   connectionToEdit.value = null;
-  await connectionsStore.fetchConnections();
+  await connectionsStore.fetchConnections(); // 重新加载连接列表
 };
-
-const openConnectionsView = () => {
-  router.push('/connections');
-};
-
-const openAuditLogsView = () => {
-  router.push('/audit-logs');
-};
+ 
+// --- 移除 selectTagFilter 函数 ---
+ 
 </script>
 
 <template>
-  <PageShell
-    :title="t('nav.dashboard')"
-    :subtitle="t('dashboard.controlCenterSubtitle', '在一个控制中心里查看连接、审计和常用入口，快速进入工作区。')"
-  >
-    <template #actions>
-      <el-button plain @click="openAuditLogsView">
-        <i class="fas fa-shield-halved mr-2"></i>
-        {{ t('dashboard.viewFullAuditLog', '查看完整审计日志') }}
-      </el-button>
-      <el-button type="primary" @click="openAddConnectionForm">
-        <i class="fas fa-plus mr-2"></i>
-        {{ t('connections.addConnection', '添加新连接') }}
-      </el-button>
-    </template>
+  <div class="p-4 md:p-6 lg:p-8 bg-background text-foreground">
+    <h1 class="text-2xl font-semibold mb-6">{{ t('nav.dashboard') }}</h1>
 
-    <template #stats>
-      <div class="control-stat-grid">
-        <div v-for="stat in dashboardStats" :key="stat.label" class="control-stat-card">
-          <span class="control-stat-card__label">{{ stat.label }}</span>
-          <span class="control-stat-card__value">{{ stat.value }}</span>
-          <span class="control-stat-card__meta">{{ stat.meta }}</span>
-        </div>
-      </div>
-    </template>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:items-start">
 
-    <div class="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
-      <el-card shadow="never" class="control-panel">
-        <template #header>
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div class="text-lg font-semibold text-foreground">
-                {{ t('dashboard.connectionList', '连接列表') }}
-              </div>
-              <div class="text-sm text-text-secondary">
-                {{ filteredAndSortedConnections.length }} / {{ connections.length }}
-              </div>
-            </div>
-
-            <div class="grid gap-2 md:grid-cols-[minmax(200px,1fr)_150px_160px_auto_auto]">
-              <el-input
-                v-model="searchQuery"
-                :placeholder="t('dashboard.searchConnectionsPlaceholder', '搜索连接...')"
-                clearable
+      <!-- Connection List -->
+      <div class="bg-card text-card-foreground shadow rounded-lg overflow-hidden border border-border min-h-[400px]">
+        <div class="px-4 py-3 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <h2 class="text-lg font-medium flex-shrink-0">{{ t('dashboard.connectionList', '连接列表') }} ({{ filteredAndSortedConnections.length }})</h2>
+          <div class="w-full sm:w-auto flex flex-wrap sm:flex-nowrap items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
+            <!-- Search Input (Order adjusted for button placement) -->
+            <input
+              type="text"
+              v-model="searchQuery"
+              :placeholder="t('dashboard.searchConnectionsPlaceholder', '搜索连接...')"
+              class="h-8 px-3 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary w-full sm:w-48"
+            />
+            <div class="flex items-center space-x-2"> <!-- Wrapper for existing controls -->
+             <!-- Tag Filter Dropdown -->
+             <select
+                v-model="selectedTagId"
+                class="h-8 px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary appearance-none bg-no-repeat bg-right pr-8"
+                style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3e%3cpath fill=\'none\' stroke=\'%236c757d\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M2 5l6 6 6-6\'/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-size: 16px 12px;"
+                aria-label="Filter connections by tag"
+                :disabled="isLoadingTags"
               >
-                <template #prefix>
-                  <i class="fas fa-search text-text-secondary"></i>
-                </template>
-              </el-input>
+                <option :value="null">{{ t('dashboard.filterTags.all', '所有标签') }}</option>
+                <option v-if="isLoadingTags" disabled>{{ t('common.loading') }}</option>
+                <!-- 修正 v-for 循环中的类型 -->
+                <option v-for="tag in (tags as TagInfo[])" :key="tag.id" :value="tag.id">
+                  {{ tag.name }}
+                </option>
+              </select>
 
-              <el-select v-model="selectedTagId" :disabled="isLoadingTags" clearable>
-                <el-option :label="t('dashboard.filterTags.all', '所有标签')" :value="null" />
-                <el-option
-                  v-for="tag in (tags as TagInfo[])"
-                  :key="tag.id"
-                  :label="tag.name"
-                  :value="tag.id"
-                />
-              </el-select>
+             <!-- Sort By Dropdown -->
+             <select
+                v-model="localSortBy"
+                class="h-8 px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary appearance-none bg-no-repeat bg-right pr-8"
+                style="background-image: url('data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 16 16\'%3e%3cpath fill=\'none\' stroke=\'%236c757d\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M2 5l6 6 6-6\'/%3e%3c/svg%3e'); background-position: right 0.5rem center; background-size: 16px 12px;"
+                aria-label="Sort connections by"
+              >
+                <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+                  {{ t(option.labelKey, option.value.replace('_', ' ')) }}
+                </option>
+              </select>
 
-              <el-select v-model="localSortBy">
-                <el-option
-                  v-for="option in sortOptions"
-                  :key="option.value"
-                  :label="t(option.labelKey, option.value)"
-                  :value="option.value"
-                />
-              </el-select>
-
-              <el-button plain @click="toggleSortOrder">
-                <i :class="['fas', isAscending ? 'fa-arrow-up-a-z' : 'fa-arrow-down-z-a']"></i>
-              </el-button>
-
-              <el-button plain @click="openConnectionsView">
-                <i class="fas fa-layer-group mr-2"></i>
-                {{ t('nav.connections') }}
-              </el-button>
+              <!-- Sort Order Button -->
+              <button
+                @click="toggleSortOrder"
+                class="h-8 px-1.5 py-1 border border-border rounded hover:bg-muted focus:outline-none focus:ring-1 focus:ring-primary flex items-center justify-center"
+                :aria-label="isAscending ? t('common.sortAscending') : t('common.sortDescending')"
+                :title="isAscending ? t('common.sortAscending') : t('common.sortDescending')"
+              >
+                <i :class="['fas', isAscending ? 'fa-arrow-up-a-z' : 'fa-arrow-down-z-a', 'w-4 h-4']"></i>
+              </button>
             </div>
+            <!-- Add Connection Button -->
+            <button @click="openAddConnectionForm" title="Add Connection" class="h-8 w-8 bg-button rounded-md shadow-sm hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition duration-150 ease-in-out flex items-center justify-center flex-shrink-0 ml-2 sm:ml-0">
+              <i class="fas fa-plus" style="color: white;"></i>
+            </button>
           </div>
-        </template>
-
-        <div v-if="isLoadingConnections && filteredAndSortedConnections.length === 0" class="control-empty">
-          <el-skeleton :rows="4" animated />
         </div>
-
-        <div v-else-if="filteredAndSortedConnections.length > 0" class="grid gap-3">
-          <el-card
-            v-for="conn in filteredAndSortedConnections"
-            :key="conn.id"
-            shadow="hover"
-            class="border border-border/50"
-          >
-            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div class="min-w-0">
-                <div class="flex items-center gap-2 text-base font-semibold text-foreground">
-                  <i
-                    :class="[
-                      'fas',
-                      conn.type === 'VNC' ? 'fa-plug' : conn.type === 'RDP' ? 'fa-desktop' : 'fa-server',
-                      'text-primary',
-                    ]"
-                  ></i>
-                  <span class="truncate">{{ conn.name || conn.host || t('connections.unnamedFallback', '未命名连接') }}</span>
-                  <el-tag size="small" effect="plain">{{ conn.type }}</el-tag>
-                </div>
-                <div class="mt-2 text-sm text-text-secondary">
+        <div class="p-4">
+          <!-- Use filteredAndSortedConnections and check its length -->
+          <div v-if="isLoadingConnections && filteredAndSortedConnections.length === 0" class="text-center text-text-secondary">{{ t('common.loading') }}</div>
+          <ul v-else-if="filteredAndSortedConnections.length > 0" class="space-y-3">
+            <!-- Iterate over filteredAndSortedConnections -->
+            <li v-for="conn in filteredAndSortedConnections" :key="conn.id" class="flex items-center justify-between p-3 bg-header/50 border border-border/50 rounded transition duration-150 ease-in-out">
+              <div class="flex-grow mr-4 overflow-hidden">
+                <span class="font-medium block truncate flex items-center" :title="conn.name || ''">
+                  <i :class="['fas', conn.type === 'VNC' ? 'fa-plug' : (conn.type === 'RDP' ? 'fa-desktop' : 'fa-server'), 'mr-2 w-4 text-center text-text-secondary']"></i>
+                  <span>{{ conn.name || conn.host || t('connections.unnamedFallback', '未命名连接') }}</span>
+                </span>
+                <span class="text-sm text-text-secondary block truncate" :title="`${conn.username}@${conn.host}:${conn.port}`">
                   {{ conn.username }}@{{ conn.host }}:{{ conn.port }}
-                </div>
-                <div class="mt-2 text-xs text-text-secondary">
+                </span>
+                <span class="text-xs text-text-alt block mb-1"> <!-- Added margin-bottom -->
                   {{ t('dashboard.lastConnected', '上次连接:') }} {{ formatRelativeTime(conn.last_connected_at) }}
-                </div>
-                <div v-if="getTagNames(conn.tag_ids).length > 0" class="mt-3 flex flex-wrap gap-2">
-                  <el-tag
+                </span>
+                <div v-if="getTagNames(conn.tag_ids).length > 0" class="flex flex-wrap gap-1 mt-1">
+                  <span
                     v-for="tagName in getTagNames(conn.tag_ids)"
                     :key="tagName"
-                    effect="plain"
-                    round
-                    size="small"
+                    class="px-1.5 py-0.5 text-xs rounded bg-muted text-muted-foreground border border-border"
                   >
                     {{ tagName }}
-                  </el-tag>
+                  </span>
                 </div>
               </div>
-
-              <div class="flex flex-wrap items-center gap-2">
-                <el-button plain @click="openEditConnectionForm(conn)">
-                  <i class="fas fa-pen mr-2"></i>
-                  {{ t('connections.actions.edit') }}
-                </el-button>
-                <el-button type="primary" @click="connectTo(conn)">
-                  <i class="fas fa-terminal mr-2"></i>
+              <div class="flex space-x-2 flex-shrink-0">
+                <button @click="openEditConnectionForm(conn)" class="px-3 py-1.5 bg-transparent text-foreground border border-border rounded-md shadow-sm hover:bg-border focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition duration-150 ease-in-out text-sm font-medium">
+                  <i class="fas fa-pencil-alt"></i>
+                </button>
+                <button @click="connectTo(conn)" class="px-4 py-2 bg-button text-button-text rounded-md shadow-sm hover:bg-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition duration-150 ease-in-out text-sm font-medium"> <!-- Applied standard button style -->
                   {{ t('connections.actions.connect') }}
-                </el-button>
+                </button>
               </div>
-            </div>
-          </el-card>
+            </li>
+          </ul>
+          <!-- Adjust no connections message based on filtering and search -->
+          <div v-else-if="!isLoadingConnections && searchQuery && filteredAndSortedConnections.length === 0" class="text-center text-text-secondary">{{ t('dashboard.noConnectionsMatchSearch', '没有连接匹配搜索条件') }}</div>
+          <div v-else-if="!isLoadingConnections && selectedTagId !== null && filteredAndSortedConnections.length === 0" class="text-center text-text-secondary">{{ t('dashboard.noConnectionsWithTag', '该标签下没有连接记录') }}</div>
+          <div v-else class="text-center text-text-secondary">{{ t('dashboard.noConnections', '没有连接记录') }}</div>
         </div>
+      </div>
 
-        <div v-else class="control-empty">
-          <el-empty
-            :description="
-              searchQuery
-                ? t('dashboard.noConnectionsMatchSearch', '没有连接匹配搜索条件')
-                : selectedTagId !== null
-                  ? t('dashboard.noConnectionsWithTag', '该标签下没有连接记录')
-                  : t('dashboard.noConnections', '没有连接记录')
-            "
-          />
+      <!-- Recent Activity -->
+      <div class="bg-card text-card-foreground shadow rounded-lg overflow-hidden border border-border min-h-[400px]">
+        <div class="px-4 py-3 border-b border-border">
+          <h2 class="text-lg font-medium">{{ t('dashboard.recentActivity', '最近活动') }}</h2>
         </div>
-      </el-card>
-
-      <el-card shadow="never" class="control-panel">
-        <template #header>
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <div class="text-lg font-semibold text-foreground">
-                {{ t('dashboard.recentActivity', '最近活动') }}
+        <div class="p-4">
+          <!-- Loading State (Only show if loading AND no logs are displayed yet) -->
+          <div v-if="isLoadingLogs && recentAuditLogs.length === 0" class="text-center text-text-secondary">{{ t('common.loading') }}</div>
+          <ul v-else-if="recentAuditLogs.length > 0" class="space-y-3">
+            <li v-for="log in recentAuditLogs" :key="log.id" class="p-3 bg-header/50 border border-border/50 rounded"> <!-- Applied audit log item style -->
+              <div class="flex justify-between items-start mb-1">
+                <span class="font-medium text-sm" :class="{ 'text-error': isFailedAction(log.action_type) }">{{ getActionTranslation(log.action_type) }}</span>
+                <span class="text-xs text-text-alt flex-shrink-0 ml-2">{{ formatRelativeTime(log.timestamp) }}</span>
               </div>
-              <div class="text-sm text-text-secondary">
-                {{ t('auditLog.paginationInfo', { currentPage: 1, totalPages: 1, totalLogs }) }}
-              </div>
-            </div>
-            <el-button plain @click="openAuditLogsView">
-              {{ t('auditLog.title', '审计日志') }}
-            </el-button>
-          </div>
-        </template>
-
-        <div v-if="isLoadingLogs && recentAuditLogs.length === 0" class="control-empty">
-          <el-skeleton :rows="5" animated />
+              <p class="text-sm text-text-secondary break-words">{{ log.details }}</p>
+            </li>
+          </ul>
+          <div v-else class="text-center text-text-secondary">{{ t('dashboard.noRecentActivity', '没有最近活动记录') }}</div>
         </div>
-
-        <div v-else-if="recentAuditLogs.length > 0" class="grid gap-3">
-          <el-card
-            v-for="log in recentAuditLogs"
-            :key="log.id"
-            shadow="never"
-            class="border border-border/50 bg-white/70"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <div
-                  class="text-sm font-semibold"
-                  :class="isFailedAction(log.action_type) ? 'text-error' : 'text-foreground'"
-                >
-                  {{ getActionTranslation(log.action_type) }}
-                </div>
-                <div class="mt-2 text-sm leading-6 text-text-secondary break-words">
-                  {{ log.details }}
-                </div>
-              </div>
-              <el-tag size="small" effect="plain">
-                {{ formatRelativeTime(log.timestamp) }}
-              </el-tag>
-            </div>
-          </el-card>
+        <div class="px-4 py-3 border-t border-border text-right">
+          <RouterLink :to="{ name: 'AuditLogs' }" class="text-sm text-link hover:text-link-hover hover:underline">
+            {{ t('dashboard.viewFullAuditLog', '查看完整审计日志') }}
+          </RouterLink>
         </div>
+      </div>
 
-        <div v-else class="control-empty">
-          <el-empty :description="t('dashboard.noRecentActivity', '没有最近活动记录')" />
-        </div>
-      </el-card>
     </div>
-
+    <!-- Add/Edit Connection Form Modal -->
     <AddConnectionForm
       v-if="showAddEditConnectionForm"
       :connectionToEdit="connectionToEdit"
@@ -480,5 +425,5 @@ const openAuditLogsView = () => {
       @connection-added="handleConnectionModified"
       @connection-updated="handleConnectionModified"
     />
-  </PageShell>
+  </div>
 </template>
