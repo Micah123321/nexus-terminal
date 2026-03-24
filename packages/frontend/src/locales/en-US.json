@@ -583,6 +583,9 @@
     "swapLabel": "Swap:",
     "diskLabel": "Disk:",
     "networkLabel": "Network",
+    "totalTrafficLabel": "Traffic Since Boot",
+    "downloadLabel": "Download",
+    "uploadLabel": "Upload",
     "notAvailable": "N/A",
     "bytesPerSecond": "B/s",
     "kiloBytesPerSecond": "KB/s",
@@ -1250,10 +1253,11 @@
     "pane": {
       "connections": "Connections",
       "terminal": "Terminal",
-      "commandBar": "Command Bar",
-      "fileManager": "File Manager",
-      "editor": "Editor",
-      "statusMonitor": "Status Monitor",
+        "commandBar": "Command Bar",
+        "fileManager": "File Manager",
+        "editor": "Editor",
+        "workbench": "Workbench",
+        "statusMonitor": "Status Monitor",
       "commandHistory": "Command History",
       "quickCommands": "Quick Commands",
       "dockerManager": "Docker Manager",
@@ -1262,14 +1266,28 @@
     "panes": {
       "suspendedSshSessions": "Suspended Session Manager"
     },
-    "noActiveSession": {
-      "title": "No Active Session",
-      "message": "Please connect to a session first",
-      "fileManagerSidebar": "File Manager requires an active session",
-      "statusMonitorSidebar": "Status Monitor requires an active session"
-    }
-  },
-  "header": {
+      "noActiveSession": {
+        "title": "No Active Session",
+        "message": "Please connect to a session first",
+        "fileManagerSidebar": "File Manager requires an active session",
+        "statusMonitorSidebar": "Status Monitor requires an active session"
+      }
+    },
+    "workspace": {
+      "noActiveSession": "No active session",
+      "workbench": {
+        "title": "Workbench",
+        "label": "Workspace",
+        "noSession": "No active session",
+        "fileManagerHint": "Activate an SSH session to browse remote files.",
+        "tabs": {
+          "files": "Files",
+          "history": "History",
+          "editor": "Editor"
+        }
+      }
+    },
+    "header": {
     "hide": "Hide",
     "show": "Show Top Navigation"
   },

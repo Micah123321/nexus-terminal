@@ -163,6 +163,7 @@ const paneLabels = computed(() => ({ // Assuming labels might depend on i18n
   commandBar: t('layout.pane.commandBar', '命令栏'),
   fileManager: t('layout.pane.fileManager', '文件管理器'),
   editor: t('layout.pane.editor', '编辑器'),
+  workbench: t('layout.pane.workbench', '工作台'),
   statusMonitor: t('layout.pane.statusMonitor', '状态监视器'),
   commandHistory: t('layout.pane.commandHistory', '命令历史'),
   quickCommands: t('layout.pane.quickCommands', '快捷指令'),

@@ -3,7 +3,7 @@ import { ref, computed, watch, type Ref, type ComputedRef } from 'vue';
 import apiClient from '../utils/apiClient';
 
 // 定义所有可用面板的名称
-export type PaneName = 'connections' | 'terminal' | 'commandBar' | 'fileManager' | 'editor' | 'statusMonitor' | 'commandHistory' | 'quickCommands' | 'dockerManager' | 'suspendedSshSessions';
+export type PaneName = 'connections' | 'terminal' | 'commandBar' | 'fileManager' | 'editor' | 'workbench' | 'statusMonitor' | 'commandHistory' | 'quickCommands' | 'dockerManager' | 'suspendedSshSessions';
 
 // 定义布局节点接口
 export interface LayoutNode {
@@ -25,7 +25,38 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 15);
 }
 
-// 定义默认布局结构 (根据用户提供的配置更新，但使用 generateId)
+function isPaneNode(node: LayoutNode | undefined | null, component: PaneName): boolean {
+  return node?.type === 'pane' && node.component === component;
+}
+
+function isLegacyDefaultLayout(node: LayoutNode | null): boolean {
+  if (!node || node.type !== 'container' || node.direction !== 'horizontal' || !node.children || node.children.length !== 3) {
+    return false;
+  }
+
+  const [leftColumn, centerColumn, rightColumn] = node.children;
+
+  return Boolean(
+    leftColumn?.type === 'container' &&
+    leftColumn.direction === 'vertical' &&
+    leftColumn.children?.length === 3 &&
+    isPaneNode(leftColumn.children[0], 'statusMonitor') &&
+    isPaneNode(leftColumn.children[1], 'commandHistory') &&
+    isPaneNode(leftColumn.children[2], 'quickCommands') &&
+    centerColumn?.type === 'container' &&
+    centerColumn.direction === 'vertical' &&
+    centerColumn.children?.length === 3 &&
+    isPaneNode(centerColumn.children[0], 'terminal') &&
+    isPaneNode(centerColumn.children[1], 'commandBar') &&
+    isPaneNode(centerColumn.children[2], 'fileManager') &&
+    rightColumn?.type === 'container' &&
+    rightColumn.direction === 'vertical' &&
+    rightColumn.children?.length === 1 &&
+    isPaneNode(rightColumn.children[0], 'editor')
+  );
+}
+
+// 定义默认布局结构
 const getDefaultLayout = (): LayoutNode => ({
   id: generateId(), // Generate new ID
   type: "container",
@@ -33,69 +64,35 @@ const getDefaultLayout = (): LayoutNode => ({
   children: [
     {
       id: generateId(), // Generate new ID
-      type: "container",
-      direction: "vertical",
-      children: [
-        {
-          id: generateId(), // Generate new ID
-          type: "pane",
-          component: "statusMonitor",
-          size: 44.56372126372345 // 使用用户提供的 size
-        },
-        {
-          id: generateId(), // Generate new ID
-          type: "pane",
-          component: "commandHistory",
-          size: 26.235651482670775 // 使用用户提供的 size
-        },
-        {
-          id: generateId(), // Generate new ID
-          type: "pane",
-          component: "quickCommands",
-          size: 29.200627253605774 // 使用用户提供的 size
-        }
-      ],
-      size: 14.59006012147659 // 使用用户提供的 size
+      type: "pane",
+      component: "workbench",
+      size: 23
     },
     {
       id: generateId(), // Generate new ID
       type: "container",
       direction: "vertical",
-      size: 58.02787988626151, // 使用用户提供的 size
+      size: 57,
       children: [
         {
           id: generateId(), // Generate new ID
           type: "pane",
           component: "terminal",
-          size: 59.94833664833884 // 使用用户提供的 size
+          size: 94
         },
         {
           id: generateId(), // Generate new ID
           type: "pane",
           component: "commandBar",
-          size: 5 // 使用用户提供的 size
-        },
-        {
-          id: generateId(), // Generate new ID
-          type: "pane",
-          component: "fileManager",
-          size: 35.05166335166116 // 使用用户提供的 size
+          size: 6
         }
       ]
     },
     {
       id: generateId(), // Generate new ID
-      type: "container",
-      direction: "vertical",
-      size: 27.3820599922619, // 使用用户提供的 size
-      children: [
-        {
-          id: generateId(), // Generate new ID
-          type: "pane",
-          component: "editor",
-          size: 100 // 使用用户提供的 size
-        }
-      ]
+      type: "pane",
+      component: "statusMonitor",
+      size: 20
     }
   ]
 });
@@ -165,7 +162,7 @@ export const useLayoutStore = defineStore('layout', () => {
   // 所有理论上可用的面板名称
   const allPossiblePanes: Ref<PaneName[]> = ref([
     'connections', 'terminal', 'commandBar', 'fileManager',
-    'editor', 'statusMonitor', 'commandHistory', 'quickCommands',
+    'editor', 'workbench', 'statusMonitor', 'commandHistory', 'quickCommands',
     'dockerManager', 'suspendedSshSessions' // <-- 添加新的挂起 SSH 会话视图
   ]);
   // 控制布局（Header/Footer）可见性的状态
@@ -201,6 +198,18 @@ function ensureNodeIds(node: LayoutNode | null): LayoutNode | null {
     return node;
 }
 
+function normalizeLoadedLayout(node: LayoutNode | null): LayoutNode | null {
+    const layoutWithIds = ensureNodeIds(node);
+    if (!layoutWithIds) return null;
+
+    if (isLegacyDefaultLayout(layoutWithIds)) {
+        console.log('[Layout Store] Detected legacy workspace default layout, migrating to workbench layout.');
+        return ensureNodeIds(getDefaultLayout());
+    }
+
+    return layoutWithIds;
+}
+
   // --- Actions ---
   // 初始化布局和侧栏配置
   async function initializeLayout() {
@@ -220,7 +229,7 @@ function ensureNodeIds(node: LayoutNode | null): LayoutNode | null {
       if (response.data) {
         console.log('[Layout Store] Step 1: Backend returned data.');
         // +++ 在赋值前确保 ID 存在 +++
-        loadedLayout = ensureNodeIds(response.data);
+        loadedLayout = normalizeLoadedLayout(response.data);
         layoutLoadedFromBackend = true;
         console.log('[Layout Store] Step 1: Layout processed with ensureNodeIds.');
         // 更新 localStorage (使用处理过的布局)
@@ -270,13 +279,13 @@ function ensureNodeIds(node: LayoutNode | null): LayoutNode | null {
           const parsedLayout = JSON.parse(savedLayout) as LayoutNode;
           console.log('[Layout Store] Step 3: Parsed layout from localStorage.');
           // +++ 在赋值前确保 ID 存在 +++
-          loadedLayout = ensureNodeIds(parsedLayout);
+          loadedLayout = normalizeLoadedLayout(parsedLayout);
           console.log('[Layout Store] Step 3: Layout processed with ensureNodeIds.');
         } else {
           // 4. 如果 localStorage 也没有，使用默认主布局
           console.log('[Layout Store] Step 4: No layout in localStorage. Applying default.');
           // +++ 确保默认布局也有 ID (虽然 getDefaultLayout 内部会生成) +++
-          loadedLayout = ensureNodeIds(getDefaultLayout());
+          loadedLayout = normalizeLoadedLayout(getDefaultLayout());
           console.log('[Layout Store] Step 4: Default layout processed with ensureNodeIds.');
         }
       } catch (error) {
@@ -284,7 +293,7 @@ function ensureNodeIds(node: LayoutNode | null): LayoutNode | null {
         // Fallback to default if error and loadedLayout is still null
         if (!loadedLayout) {
              console.log('[Layout Store] Step 3/4: Applying default layout due to error.');
-             loadedLayout = ensureNodeIds(getDefaultLayout());
+             loadedLayout = normalizeLoadedLayout(getDefaultLayout());
         }
       }
     }
@@ -326,7 +335,7 @@ function ensureNodeIds(node: LayoutNode | null): LayoutNode | null {
     // Final check (主要是为了调试，可以简化或移除)
     if (!layoutTree.value) {
         console.error('[Layout Store] FATAL: layoutTree is STILL null after all attempts! Applying default as last resort.');
-        layoutTree.value = ensureNodeIds(getDefaultLayout());
+        layoutTree.value = normalizeLoadedLayout(getDefaultLayout());
     }
      if (!sidebarPanes.value || !Array.isArray(sidebarPanes.value.left) || !Array.isArray(sidebarPanes.value.right)) {
          console.warn('[Layout Store] Final Check: Sidebar panes invalid. Applying default.');

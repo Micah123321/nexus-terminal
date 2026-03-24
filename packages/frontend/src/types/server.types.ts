@@ -13,6 +13,8 @@ export interface ServerStatus {
     swapTotal?: number; // MB
     netRxRate?: number; // Bytes/sec
     netTxRate?: number; // Bytes/sec
+    netRxTotalBytes?: number; // Bytes since boot
+    netTxTotalBytes?: number; // Bytes since boot
     netInterface?: string;
     osName?: string;
 }

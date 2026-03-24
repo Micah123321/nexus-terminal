@@ -143,6 +143,21 @@
           </div>
 
       </div>
+      <div v-if="activeSessionId && currentServerStatus" class="status-item grid grid-cols-[auto_1fr] items-start gap-3 mt-2">
+        <label class="font-semibold text-text-secondary text-left whitespace-nowrap">{{ t('statusMonitor.totalTrafficLabel') }}:</label>
+        <div class="flex flex-col gap-1.5 text-xs">
+          <span class="inline-flex items-center gap-2 whitespace-nowrap text-green-500">
+            <i class="fas fa-arrow-down w-3 text-center"></i>
+            <span>{{ t('statusMonitor.downloadLabel') }}</span>
+            <span class="font-mono text-foreground">{{ formatBytes(currentServerStatus?.netRxTotalBytes) }}</span>
+          </span>
+          <span class="inline-flex items-center gap-2 whitespace-nowrap text-orange-500">
+            <i class="fas fa-arrow-up w-3 text-center"></i>
+            <span>{{ t('statusMonitor.uploadLabel') }}</span>
+            <span class="font-mono text-foreground">{{ formatBytes(currentServerStatus?.netTxTotalBytes) }}</span>
+          </span>
+        </div>
+      </div>
 <!-- 图表组件 -->
       <!-- 仅当有活动会话且有数据时渲染图表 -->
       <StatusCharts v-if="activeSessionId && currentServerStatus" :server-status="currentServerStatus" :active-session-id="activeSessionId" />
@@ -161,6 +176,7 @@ import { storeToRefs } from 'pinia'; // 导入 storeToRefs
 import { useSettingsStore } from '../stores/settings.store'; //  导入设置 store
 import { useConnectionsStore } from '../stores/connections.store'; // 导入连接 store
 import { useUiNotificationsStore } from '../stores/uiNotifications.store'; // + 导入通知 store
+import type { ServerStatus } from '../types/server.types';
 
 const { t } = useI18n();
 const sessionStore = useSessionStore();
@@ -172,24 +188,6 @@ const { statusMonitorShowIpBoolean } = storeToRefs(settingsStore); //  获取 IP
 const isSwitchingSession = ref(false);
 
 const formatPercentageText = (percentage: number): string => `${Math.round(percentage)}%`;
-
-interface ServerStatus {
-  cpuPercent?: number;
-  memPercent?: number;
-  memUsed?: number; // MB
-  memTotal?: number; // MB
-  swapPercent?: number;
-  swapUsed?: number; // MB
-  swapTotal?: number; // MB
-  diskPercent?: number;
-  diskUsed?: number; // KB
-  diskTotal?: number; // KB
-  cpuModel?: string;
-  netRxRate?: number; // 字节/秒
-  netTxRate?: number; // 字节/秒
-  netInterface?: string;
-  osName?: string;
-}
 
 // --- Props ---
 const props = defineProps({
@@ -274,6 +272,15 @@ const formatBytesPerSecond = (bytes?: number): string => {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} ${t('statusMonitor.kiloBytesPerSecond')}`;
     if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} ${t('statusMonitor.megaBytesPerSecond')}`;
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${t('statusMonitor.gigaBytesPerSecond')}`;
+};
+
+const formatBytes = (bytes?: number): string => {
+    if (bytes === undefined || bytes === null || isNaN(bytes)) return t('statusMonitor.notAvailable');
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} ${t('statusMonitor.megaBytes')}`;
+    if (bytes < 1024 * 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} ${t('statusMonitor.gigaBytes')}`;
+    return `${(bytes / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
 };
 
 const formatKbToGb = (kb?: number): string => {

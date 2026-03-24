@@ -88,6 +88,7 @@ const componentMap: Record<PaneName, Component> = {
   commandBar: defineAsyncComponent(() => import('./CommandInputBar.vue')),
   fileManager: defineAsyncComponent(() => import('./FileManager.vue')),
   editor: defineAsyncComponent(() => import('./FileEditorContainer.vue')),
+  workbench: defineAsyncComponent(() => import('./WorkspaceWorkbench.vue')),
   statusMonitor: defineAsyncComponent(() => import('./StatusMonitor.vue')),
   commandHistory: defineAsyncComponent(() => import('../views/CommandHistoryView.vue')),
   quickCommands: defineAsyncComponent(() => import('../views/QuickCommandsView.vue')),
@@ -131,6 +132,7 @@ const paneLabels = computed(() => ({
   commandBar: t('layout.pane.commandBar', '命令栏'),
   fileManager: t('layout.pane.fileManager', '文件管理器'),
   editor: t('layout.pane.editor', '编辑器'),
+  workbench: t('layout.pane.workbench', '工作台'),
   statusMonitor: t('layout.pane.statusMonitor', '状态监视器'),
   commandHistory: t('layout.pane.commandHistory', '命令历史'),
   quickCommands: t('layout.pane.quickCommands', '快捷指令'),
@@ -186,6 +188,21 @@ const componentProps = computed(() => {
         class: 'pane-content',
         // --- 移除事件转发 ---
       };
+    case 'workbench':
+      return {
+        tabs: props.editorTabs,
+        activeTabId: props.activeEditorTabId,
+        sessionId: currentActiveSession?.sessionId ?? props.activeSessionId,
+        instanceId: props.layoutNode.id || `workbench-main-${props.activeSessionId ?? 'unknown'}`,
+        dbConnectionId: currentActiveSession?.connectionId ?? null,
+        wsDeps: currentActiveSession ? {
+          sendMessage: currentActiveSession.wsManager.sendMessage,
+          onMessage: currentActiveSession.wsManager.onMessage,
+          isConnected: currentActiveSession.wsManager.isConnected,
+          isSftpReady: currentActiveSession.wsManager.isSftpReady
+        } : null,
+        class: 'flex flex-col flex-grow h-full overflow-hidden',
+      };
     case 'commandBar':
        return {
          class: 'pane-content',
@@ -239,6 +256,21 @@ const sidebarProps = computed(() => (paneName: PaneName | null, side: 'left' | '
      return {
        ...baseProps,
        // --- 移除事件转发 ---
+     };
+   case 'workbench':
+     return {
+       ...baseProps,
+       tabs: editorTabsFromStore.value,
+       activeTabId: activeEditorTabIdFromStore.value,
+       sessionId: activeSession.value?.sessionId ?? props.activeSessionId,
+       instanceId: side === 'left' ? 'workbench-sidebar-left' : 'workbench-sidebar-right',
+       dbConnectionId: activeSession.value?.connectionId ?? null,
+       wsDeps: activeSession.value ? {
+         sendMessage: activeSession.value.wsManager.sendMessage,
+         onMessage: activeSession.value.wsManager.onMessage,
+         isConnected: activeSession.value.wsManager.isConnected,
+         isSftpReady: activeSession.value.wsManager.isSftpReady
+       } : null,
      };
    case 'fileManager':
      // Only provide props if there's an active session
@@ -357,6 +389,7 @@ const getIconClasses = (paneName: PaneName): string[] => {
     case 'quickCommands': return ['fas', 'fa-bolt'];
     case 'dockerManager': return ['fab', 'fa-docker']; // Use 'fab' for Docker
     case 'editor': return ['fas', 'fa-file-alt'];
+    case 'workbench': return ['fas', 'fa-table-columns'];
     case 'statusMonitor': return ['fas', 'fa-tachometer-alt'];
     case 'suspendedSshSessions': return ['fas', 'fa-pause-circle']; // 图标：暂停圈
     // Add other specific icons here if needed

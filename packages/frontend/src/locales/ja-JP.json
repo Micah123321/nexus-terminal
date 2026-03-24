@@ -555,6 +555,7 @@
             "dockerManager": "Docker マネージャー",
             "editor": "エディター",
             "fileManager": "ファイルマネージャー",
+            "workbench": "ワークベンチ",
             "quickCommands": "クイックコマンド",
             "statusMonitor": "ステータスモニター",
             "terminal": "ターミナル",
@@ -562,6 +563,20 @@
         },
         "panes": {
             "suspendedSshSessions": "中断されたセッション管理者"
+        }
+    },
+    "workspace": {
+        "noActiveSession": "アクティブなセッションはありません",
+        "workbench": {
+            "title": "Workbench",
+            "label": "ワークスペース",
+            "noSession": "アクティブなセッションはありません",
+            "fileManagerHint": "SSH セッションを有効にするとリモートファイルを参照できます。",
+            "tabs": {
+                "files": "ファイル",
+                "history": "履歴",
+                "editor": "エディター"
+            }
         }
     },
     "layoutConfigurator": {
@@ -1205,6 +1220,9 @@
         "megaBytesPerSecond": "MB/秒",
         "memoryLabel": "メモリ:",
         "networkLabel": "ネットワーク",
+        "totalTrafficLabel": "起動後の累計トラフィック",
+        "downloadLabel": "受信",
+        "uploadLabel": "送信",
         "notAvailable": "N/A",
         "osLabel": "OS:",
         "swapLabel": "スワップ:",

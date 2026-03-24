@@ -583,6 +583,9 @@
     "swapLabel": "Swap:",
     "diskLabel": "磁盘:",
     "networkLabel": "网络",
+    "totalTrafficLabel": "开机累计流量",
+    "downloadLabel": "下行",
+    "uploadLabel": "上行",
     "notAvailable": "N/A",
     "bytesPerSecond": "B/s",
     "kiloBytesPerSecond": "KB/s",
@@ -1254,10 +1257,11 @@
     "pane": {
       "connections": "连接列表",
       "terminal": "终端",
-      "commandBar": "命令栏",
-      "fileManager": "文件管理器",
-      "editor": "编辑器",
-      "statusMonitor": "状态监视器",
+        "commandBar": "命令栏",
+        "fileManager": "文件管理器",
+        "editor": "编辑器",
+        "workbench": "工作台",
+        "statusMonitor": "状态监视器",
       "commandHistory": "命令历史",
       "quickCommands": "快捷指令",
       "dockerManager": "Docker 管理器",
@@ -1266,14 +1270,28 @@
     "panes": {
       "suspendedSshSessions": "挂起会话管理器"
     },
-    "noActiveSession": {
-      "title": "无活动会话",
-      "message": "请先连接一个会话",
-      "fileManagerSidebar": "文件管理器需要活动会话",
-      "statusMonitorSidebar": "状态监视器需要活动会话"
-    }
-  },
-  "header": {
+      "noActiveSession": {
+        "title": "无活动会话",
+        "message": "请先连接一个会话",
+        "fileManagerSidebar": "文件管理器需要活动会话",
+        "statusMonitorSidebar": "状态监视器需要活动会话"
+      }
+    },
+    "workspace": {
+      "noActiveSession": "没有活动的会话",
+      "workbench": {
+        "title": "Workbench",
+        "label": "工作台",
+        "noSession": "未激活会话",
+        "fileManagerHint": "激活一个 SSH 会话后即可浏览远程文件。",
+        "tabs": {
+          "files": "文件",
+          "history": "历史命令",
+          "editor": "编辑器"
+        }
+      }
+    },
+    "header": {
     "hide": "隐藏",
     "show": "显示顶部导航"
   },

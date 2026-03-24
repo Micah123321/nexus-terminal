@@ -18,6 +18,8 @@ interface ServerStatus {
     cpuModel?: string;
     netRxRate?: number; // Bytes per second
     netTxRate?: number; // Bytes per second
+    netRxTotalBytes?: number; // Bytes since boot
+    netTxTotalBytes?: number; // Bytes since boot
     netInterface?: string;
     osName?: string;
     loadAvg?: number[]; // 系统平均负载 [1min, 5min, 15min]
@@ -318,6 +320,8 @@ export class StatusMonitorService {
                          status.netInterface = defaultInterface;
                          const currentRx = currentStats[defaultInterface].rx_bytes;
                          const currentTx = currentStats[defaultInterface].tx_bytes;
+                         status.netRxTotalBytes = currentRx;
+                         status.netTxTotalBytes = currentTx;
                          const prevStats = previousNetStats.get(sessionId);
 
                          if (prevStats && prevStats.timestamp < timestamp) {
