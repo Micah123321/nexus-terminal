@@ -36,8 +36,8 @@
 
 ### 工作区交互
 **条件**: 用户进入 `/workspace` 或相关管理页面。  
-**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值；`Terminal.vue` 会跟踪 xterm 的视口行号与贴底状态，在终端标签切换、重新激活和 `fit()` 后按原滚动意图恢复。  
-**结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中布局与交互微调优先落在 `layout.store.ts`、`LayoutRenderer.vue`、`WorkspaceWorkbench.vue`、`QuickCommandsView.vue` 和 `Terminal.vue`。
+**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值；`Terminal.vue` 会跟踪 xterm 的视口行号与贴底状态，在终端标签切换、重新激活和 `fit()` 后按原滚动意图恢复；样式编辑器中的“黑暗模式”预设与 `defaultXtermTheme` 已统一为黑绿夜间风格。  
+**结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中布局与交互微调优先落在 `layout.store.ts`、`LayoutRenderer.vue`、`WorkspaceWorkbench.vue`、`QuickCommandsView.vue`、`Terminal.vue`、`StyleCustomizerUiTab.vue` 和 `features/appearance/config/default-themes.ts`。
 
 ## 依赖关系
 

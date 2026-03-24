@@ -37,6 +37,7 @@ let observedElement: HTMLElement | null = null; // +++ Store the observed elemen
 let debounceTimer: number | null = null; // 用于防抖的计时器 ID
 let selectionListenerDisposable: IDisposable | null = null; // +++ 提升声明并添加类型 +++
 let scrollListenerDisposable: IDisposable | null = null;
+let renderListenerDisposable: IDisposable | null = null;
 let lastResizeObserverWidth = 0;
 let lastResizeObserverHeight = 0;
 const RESIZE_THRESHOLD = 0.5; // px
@@ -130,6 +131,25 @@ const restoreViewportSnapshot = (term: Terminal, snapshot?: TerminalViewportSnap
   }
 
   syncViewportTracking(term);
+};
+
+const markExplicitForegroundSpans = () => {
+  const hostElement = terminalRef.value;
+  if (!hostElement) {
+    return;
+  }
+
+  const rowSpans = hostElement.querySelectorAll<HTMLElement>('.xterm-rows span');
+  rowSpans.forEach((span) => {
+    const hasExplicitForeground =
+      span.className.includes('xterm-fg-') || span.style.color !== '';
+
+    if (hasExplicitForeground) {
+      span.dataset.explicitForeground = 'true';
+    } else {
+      delete span.dataset.explicitForeground;
+    }
+  });
 };
 
 // 防抖处理由 ResizeObserver 触发的 resize 事件
@@ -311,6 +331,7 @@ onMounted(() => {
     // terminal.open() 同步执行完毕后，可以认为 Xterm 已尝试附加到 DOM
     isTerminalDomReady.value = true; // +++ 直接在此处设置 DOM 准备就绪状态 +++
     console.log(`[Terminal ${props.sessionId}] Xterm open() called, considering DOM ready for initial style checks.`);
+    markExplicitForegroundSpans();
  
     // 适应容器大小
     fitAndEmitResizeNow(terminal);
@@ -318,6 +339,10 @@ onMounted(() => {
     // 监听用户输入
     terminal.onData((data) => {
       emitWorkspaceEvent('terminal:input', { sessionId: props.sessionId, data });
+    });
+
+    renderListenerDisposable = terminal.onRender(() => {
+      markExplicitForegroundSpans();
     });
 
     scrollListenerDisposable = terminal.onScroll(() => {
@@ -665,6 +690,10 @@ onBeforeUnmount(() => {
       scrollListenerDisposable.dispose();
   }
 
+  if (renderListenerDisposable) {
+      renderListenerDisposable.dispose();
+  }
+
   
     // 确保在卸载时移除右键监听器
     removeContextMenuListener();
@@ -739,6 +768,7 @@ const applyTerminalTextStyles = () => {
     } else {
       hostElement.style.removeProperty('--terminal-shadow');
     }
+    markExplicitForegroundSpans();
     // console.log('[Terminal] Applied text styles. Stroke enabled:', terminalTextStrokeEnabled.value, 'Shadow enabled:', terminalTextShadowEnabled.value);
   }
 };
@@ -814,9 +844,7 @@ watchEffect(() => {
 }
 
 /* 文字描边和阴影样式 */
-.terminal-inner-container.has-text-stroke :deep(.xterm-rows span),
-.terminal-inner-container.has-text-stroke :deep(.xterm-rows div > span), /* 更具体地针对嵌套 span */
-.terminal-inner-container.has-text-stroke :deep(.xterm-rows div) { /* 针对直接包含文本的 div */
+.terminal-inner-container.has-text-stroke :deep(.xterm-rows span:not([data-explicit-foreground="true"])) {
   -webkit-text-stroke-width: var(--terminal-stroke-width);
   -webkit-text-stroke-color: var(--terminal-stroke-color);
   text-stroke-width: var(--terminal-stroke-width);
@@ -826,9 +854,7 @@ watchEffect(() => {
   -webkit-paint-order: stroke fill; /* 兼容 WebKit */
 }
 
-.terminal-inner-container.has-text-shadow :deep(.xterm-rows span),
-.terminal-inner-container.has-text-shadow :deep(.xterm-rows div > span),
-.terminal-inner-container.has-text-shadow :deep(.xterm-rows div) {
+.terminal-inner-container.has-text-shadow :deep(.xterm-rows span:not([data-explicit-foreground="true"])) {
   text-shadow: var(--terminal-shadow);
 }
 

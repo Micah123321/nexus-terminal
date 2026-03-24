@@ -41,11 +41,11 @@ const {
 const editableTerminalFontFamily = ref('');
 const editableTerminalFontSize = ref(14);
 
-const editableTerminalTextStrokeEnabled = ref(false);
+const editableTerminalTextStrokeEnabled = ref(true);
 const editableTerminalTextStrokeWidth = ref(1);
 const editableTerminalTextStrokeColor = ref('#000000');
 
-const editableTerminalTextShadowEnabled = ref(false);
+const editableTerminalTextShadowEnabled = ref(true);
 const editableTerminalTextShadowOffsetX = ref(0);
 const editableTerminalTextShadowOffsetY = ref(0);
 const editableTerminalTextShadowBlur = ref(0);

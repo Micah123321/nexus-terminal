@@ -154,7 +154,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
 
     // 文字描边设置
     const terminalTextStrokeEnabled = computed<boolean>(() => {
-        return appearanceSettings.value.terminalTextStrokeEnabled ?? false;
+        return appearanceSettings.value.terminalTextStrokeEnabled ?? true;
     });
     const terminalTextStrokeWidth = computed<number>(() => {
         return appearanceSettings.value.terminalTextStrokeWidth ?? 1;
@@ -165,7 +165,7 @@ export const useAppearanceStore = defineStore('appearance', () => {
 
     // 文字阴影设置
     const terminalTextShadowEnabled = computed<boolean>(() => {
-        return appearanceSettings.value.terminalTextShadowEnabled ?? false;
+        return appearanceSettings.value.terminalTextShadowEnabled ?? true;
     });
     const terminalTextShadowOffsetX = computed<number>(() => {
         return appearanceSettings.value.terminalTextShadowOffsetX ?? 0;

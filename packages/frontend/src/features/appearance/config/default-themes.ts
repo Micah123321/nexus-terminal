@@ -3,26 +3,26 @@ import type { ITheme } from 'xterm';
 // 默认 xterm 主题
 // (与 backend/src/config/default-themes.ts 中的定义保持一致)
 export const defaultXtermTheme: ITheme = {
-  background: '#1e1e1e',
-  foreground: '#d4d4d4',
-  cursor: '#d4d4d4',
-  selectionBackground: '#264f78', // 使用 selectionBackground
-  black: '#000000',
-  red: '#cd3131',
-  green: '#0dbc79',
-  yellow: '#e5e510',
-  blue: '#2472c8',
-  magenta: '#bc3fbc',
-  cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#23d18b',
-  brightYellow: '#f5f543',
-  brightBlue: '#3b8eea',
-  brightMagenta: '#d670d6',
-  brightCyan: '#29b8db',
-  brightWhite: '#e5e5e5'
+  background: '#111411',
+  foreground: '#d8e6d2',
+  cursor: '#8ff7a7',
+  selectionBackground: '#21462b',
+  black: '#111411',
+  red: '#d96c5f',
+  green: '#59d971',
+  yellow: '#d8ba52',
+  blue: '#4ca89f',
+  magenta: '#6f8f8a',
+  cyan: '#4ec9b0',
+  white: '#d8e6d2',
+  brightBlack: '#5d685b',
+  brightRed: '#f07d6c',
+  brightGreen: '#7df79b',
+  brightYellow: '#ead17a',
+  brightBlue: '#76d0c8',
+  brightMagenta: '#92b8b2',
+  brightCyan: '#7ae7d6',
+  brightWhite: '#f3fff0'
 };
 
 // 默认 UI 主题 (CSS 变量)

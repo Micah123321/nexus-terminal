@@ -185,12 +185,12 @@ const getDefaultAppearanceSettings = (): Omit<AppearanceSettings, '_id'> => {
        terminal_custom_html: '', // 默认自定义 HTML 为空字符串
        remoteHtmlPresetsUrl: null, // 默认远程 HTML 预设 URL 为 null
         // 终端文本描边设置默认值
-        terminalTextStrokeEnabled: false,
+        terminalTextStrokeEnabled: true,
         terminalTextStrokeWidth: 1,
         terminalTextStrokeColor: '#000000',
 
         // 终端文本阴影设置默认值
-        terminalTextShadowEnabled: false,
+        terminalTextShadowEnabled: true,
         terminalTextShadowOffsetX: 2,
         terminalTextShadowOffsetY: 2,
         terminalTextShadowBlur: 0,
