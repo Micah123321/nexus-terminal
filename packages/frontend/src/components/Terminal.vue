@@ -36,9 +36,13 @@ let resizeObserver: ResizeObserver | null = null;
 let observedElement: HTMLElement | null = null; // +++ Store the observed element +++
 let debounceTimer: number | null = null; // 用于防抖的计时器 ID
 let selectionListenerDisposable: IDisposable | null = null; // +++ 提升声明并添加类型 +++
+let scrollListenerDisposable: IDisposable | null = null;
 let lastResizeObserverWidth = 0;
 let lastResizeObserverHeight = 0;
 const RESIZE_THRESHOLD = 0.5; // px
+const BOTTOM_STICK_THRESHOLD = 2;
+let lastKnownViewportLine = 0;
+let lastKnownShouldStickToBottom = true;
 
 
 const { isMobile } = useDeviceDetection(); // 设备检测
@@ -89,6 +93,45 @@ const debounce = (func: Function, delay: number) => {
   };
 };
 
+type TerminalViewportSnapshot = {
+  viewportLine: number;
+  shouldStickToBottom: boolean;
+};
+
+const getViewportSnapshot = (term: Terminal): TerminalViewportSnapshot => {
+  const buffer = term.buffer.active;
+  const maxScrollLine = Math.max(0, buffer.baseY);
+  const viewportLine = Math.max(0, Math.min(buffer.viewportY, maxScrollLine));
+
+  return {
+    viewportLine,
+    shouldStickToBottom: maxScrollLine - viewportLine <= BOTTOM_STICK_THRESHOLD,
+  };
+};
+
+const syncViewportTracking = (term: Terminal): TerminalViewportSnapshot => {
+  const snapshot = getViewportSnapshot(term);
+  lastKnownViewportLine = snapshot.viewportLine;
+  lastKnownShouldStickToBottom = snapshot.shouldStickToBottom;
+  return snapshot;
+};
+
+const restoreViewportSnapshot = (term: Terminal, snapshot?: TerminalViewportSnapshot) => {
+  const effectiveSnapshot = snapshot ?? {
+    viewportLine: lastKnownViewportLine,
+    shouldStickToBottom: lastKnownShouldStickToBottom,
+  };
+
+  if (effectiveSnapshot.shouldStickToBottom) {
+    term.scrollToBottom();
+  } else {
+    const targetLine = Math.min(effectiveSnapshot.viewportLine, Math.max(0, term.buffer.active.baseY));
+    term.scrollToLine(targetLine);
+  }
+
+  syncViewportTracking(term);
+};
+
 // 防抖处理由 ResizeObserver 触发的 resize 事件
 const debouncedEmitResize = debounce((term: Terminal) => {
     if (term && props.isActive) { // 仅当标签仍处于活动状态时才发送防抖后的 resize
@@ -105,13 +148,15 @@ const debouncedEmitResize = debounce((term: Terminal) => {
 }, 150); // 150ms 防抖延迟
 
 // 立即执行 Fit 并发送 Resize 的函数
-const fitAndEmitResizeNow = (term: Terminal) => {
+const fitAndEmitResizeNow = (term: Terminal, snapshotOverride?: TerminalViewportSnapshot) => {
     // terminalRef 现在指向内部容器，检查它即可
     if (!term || !terminalRef.value) return;
     try {
         // 确保容器可见且有尺寸
         if (terminalRef.value.offsetHeight > 0 && terminalRef.value.offsetWidth > 0) {
+            const viewportSnapshot = snapshotOverride ?? syncViewportTracking(term);
             fitAddon?.fit();
+            restoreViewportSnapshot(term, viewportSnapshot);
             const dimensions = { cols: term.cols, rows: term.rows };
             emitWorkspaceEvent('terminal:resize', { sessionId: props.sessionId, dims: dimensions });
             // 发出稳定尺寸事件
@@ -268,12 +313,17 @@ onMounted(() => {
     console.log(`[Terminal ${props.sessionId}] Xterm open() called, considering DOM ready for initial style checks.`);
  
     // 适应容器大小
-    fitAddon.fit();
-    emitWorkspaceEvent('terminal:resize', { sessionId: props.sessionId, dims: { cols: terminal.cols, rows: terminal.rows } }); // 触发初始 resize 事件
+    fitAndEmitResizeNow(terminal);
 
     // 监听用户输入
     terminal.onData((data) => {
       emitWorkspaceEvent('terminal:input', { sessionId: props.sessionId, data });
+    });
+
+    scrollListenerDisposable = terminal.onScroll(() => {
+      if (terminal && props.isActive) {
+        syncViewportTracking(terminal);
+      }
     });
 
     // 监听终端大小变化 (通过 ResizeObserver) - 主要处理浏览器窗口大小变化等
@@ -317,7 +367,9 @@ onMounted(() => {
 
             if (rectHeight > 0 && rectWidth > 0) {
                 try {
+                  const viewportSnapshot = syncViewportTracking(terminal);
                   fitAddon?.fit();
+                  restoreViewportSnapshot(terminal, viewportSnapshot);
                   debouncedEmitResize(terminal); // This will log the cols/rows after debouncing
                   emitWorkspaceEvent('terminal:stabilizedResize', { sessionId: props.sessionId, width: roundedWidth, height: roundedHeight });
                  } catch (e) {
@@ -340,6 +392,10 @@ onMounted(() => {
             if (newValue) {
                 // --- Become Active ---
                 console.log(`[Terminal ${props.sessionId}] Becoming active. Observing element and fitting.`);
+                const activationViewportSnapshot = {
+                    viewportLine: lastKnownViewportLine,
+                    shouldStickToBottom: lastKnownShouldStickToBottom,
+                };
                 // Start observing
                 try {
                     resizeObserver.observe(observedElement);
@@ -351,7 +407,7 @@ onMounted(() => {
                     setTimeout(() => {
                         // 检查内部容器 terminalRef
                         if (props.isActive && terminal && terminalRef.value && terminalRef.value.offsetHeight > 0) {
-                            fitAndEmitResizeNow(terminal);
+                            fitAndEmitResizeNow(terminal, activationViewportSnapshot);
                             // Also ensure focus when becoming active
                             terminal.focus();
                         } else {
@@ -362,6 +418,9 @@ onMounted(() => {
             } else {
                 // --- Become Inactive ---
                 console.log(`[Terminal ${props.sessionId}] Becoming inactive. Unobserving element.`);
+                if (terminal) {
+                    syncViewportTracking(terminal);
+                }
                 // Stop observing
                 try {
                     resizeObserver.unobserve(observedElement);
@@ -600,6 +659,10 @@ onBeforeUnmount(() => {
   // 在卸载前清理选择监听器
   if (selectionListenerDisposable) {
       selectionListenerDisposable.dispose();
+  }
+
+  if (scrollListenerDisposable) {
+      scrollListenerDisposable.dispose();
   }
 
   
