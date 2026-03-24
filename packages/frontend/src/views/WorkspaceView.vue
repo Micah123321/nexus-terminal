@@ -824,30 +824,12 @@ const closeFileManagerModal = () => {
 
 <style scoped>
 .workspace-view {
-  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  box-sizing: border-box;
-  padding: 0 1rem 1rem;
   background-color: transparent;
+  flex-direction: column;
   height: 100dvh; /* 使用动态视口高度 */
-  min-height: 0;
   overflow: hidden;
   transition: height 0.3s ease; /* 可选：添加过渡效果 */
-}
-
-.workspace-view::before {
-  content: '';
-  position: absolute;
-  inset: 0.9rem 1rem 1rem;
-  border-radius: 32px;
-  border: 1px solid rgba(103, 124, 155, 0.12);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(241, 246, 252, 0.18)),
-    radial-gradient(circle at top right, rgba(60, 105, 231, 0.1), transparent 28%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  pointer-events: none;
 }
 
 /* 当 Header 可见时，调整高度 */
@@ -857,20 +839,14 @@ const closeFileManagerModal = () => {
 }
 
 .main-content-area {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  border: 1px solid rgba(103, 124, 155, 0.18);
-  border-radius: 30px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(242, 247, 253, 0.72)),
-    linear-gradient(135deg, rgba(60, 105, 231, 0.05), transparent);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(22px);
-  padding: 0.85rem;
+    display: flex;
+    flex: 1;
+    overflow: hidden; /* Keep overflow hidden */
+    border: 1px solid var(--border-color, #ccc); /* Use variable for border */
+    border-top: none; /* Remove top border as it's handled by the tab bar */
+    border-radius: 0 0 5px 5px; /* Top-left, Top-right, Bottom-right, Bottom-left */
+    margin: var(--base-margin, 0.5rem); /* Add some margin around the content area */
+    margin-top: 0; /* Remove top margin if tab bar is directly above */
 }
 
 .layout-renderer-wrapper {
@@ -878,81 +854,64 @@ const closeFileManagerModal = () => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.46);
 }
 
 /* 面板占位符样式 (用于加载或错误状态) */
 .pane-placeholder {
-  position: relative;
-  z-index: 1;
-  flex-grow: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  color: var(--text-color-secondary);
-  background: rgba(248, 251, 255, 0.72);
-  border: 1px dashed rgba(103, 124, 155, 0.28);
-  border-radius: 24px;
-  font-size: 0.92em;
-  padding: var(--base-padding);
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: var(--text-color-secondary); /* Use secondary text color variable */
+    background-color: var(--header-bg-color); /* Use header background for slight contrast */
+    font-size: 0.9em;
+    padding: var(--base-padding); /* Use base padding variable */
 }
 
 
 /* --- Mobile Layout Styles --- */
 .workspace-view.is-mobile {
-  padding: 0 0 0.85rem;
+  /* Ensure flex column layout */
+  display: flex; /* Uncommented */
+  flex-direction: column; /* Uncommented */
+  /* Height is already handled by .workspace-view and .with-header */
 }
 
 .workspace-view.is-mobile .main-content-area {
+  /* Hide the desktop content area in mobile view */
   display: none;
 }
 
 .mobile-content-area {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-  min-height: 0;
-  overflow: hidden;
-  margin: 0 0.75rem;
-  border: 1px solid rgba(103, 124, 155, 0.18);
-  border-radius: 26px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(242, 247, 253, 0.72));
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(22px);
-  padding: 0.75rem;
+  display: flex; /* Use flex for the terminal container */
+  flex-direction: column; /* Stack elements vertically if needed */
+  flex-grow: 1; /* Allow this area to take up remaining space */
+  overflow: hidden; /* Prevent overflow */
+  position: relative; /* Needed for potential absolute positioning inside */
+  /* Remove desktop margins/borders */
+  margin: 0;
+  border: none;
+  border-radius: 0;
 }
 
 .mobile-terminal {
-  flex-grow: 1;
+  flex-grow: 1; /* Terminal takes all available space in mobile-content-area */
   width: 100%;
   overflow: hidden;
 }
 
 .mobile-command-bar {
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  margin: 0.75rem 0.75rem 0;
-  border: 1px solid rgba(103, 124, 155, 0.18);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
+  flex-shrink: 0; /* Prevent command bar from shrinking */
+  /* Add specific styles if needed, e.g., border-top */
+  border-top: 1px solid var(--border-color, #ccc);
 }
 
 .mobile-virtual-keyboard {
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  width: calc(100% - 1.5rem);
-  margin: 0.75rem auto 0;
-  box-sizing: border-box;
-  border-radius: 24px;
-  overflow: hidden;
+  flex-shrink: 0; /* 防止虚拟键盘缩小 */
+  width: 100%; /* 确保宽度为 100% */
+  box-sizing: border-box; /* 边框和内边距包含在宽度内 */
+  /* 可以添加更多样式，例如背景色、边框等 */
 }
 
 

@@ -63,7 +63,6 @@ const sessionStore = useSessionStore(); // Session store 保持不变
 const showConnectionListPopup = ref(false); // 连接列表弹出状态
 const draggableSessions = ref<SessionTabInfoWithStatus[]>([]); // + Local state for draggable
 const showTransferProgressModal = ref(false); // 控制传输进度模态框的显示状态
-const tabScrollerRef = ref<HTMLElement | null>(null);
 
 // + Watch prop changes to update local state
 watch(() => props.sessions, (newSessions) => {
@@ -394,7 +393,7 @@ const handleWheel: EventListener = (event: Event) => {
 
 // 在组件挂载时添加滚轮事件监听
 onMounted(() => {
-  const tabContainer = tabScrollerRef.value;
+  const tabContainer = document.querySelector('.overflow-x-auto');
   if (tabContainer) {
     tabContainer.addEventListener('wheel', handleWheel as EventListener, { passive: false });
   }
@@ -402,7 +401,7 @@ onMounted(() => {
 
 // 在组件卸载时移除滚轮事件监听
 onBeforeUnmount(() => {
-  const tabContainer = tabScrollerRef.value;
+  const tabContainer = document.querySelector('.overflow-x-auto');
   if (tabContainer) {
     tabContainer.removeEventListener('wheel', handleWheel as EventListener);
   }
@@ -412,13 +411,11 @@ onBeforeUnmount(() => {
 
 <template>
   <!-- +++ 使用 :class 绑定来条件化样式，包括高度 (修正 props 引用) +++ -->
-  <div
-    :class="[
-      'terminal-tab-shell flex overflow-hidden',
-      props.isMobile ? 'terminal-tab-shell--mobile h-10' : 'terminal-tab-shell--desktop h-12',
-    ]"
-  >
-    <div ref="tabScrollerRef" class="terminal-tab-shell__scroller flex items-center overflow-x-auto flex-shrink min-w-0 h-full">
+  <div :class="['flex bg-header border border-border overflow-hidden',
+               { 'rounded-t-md mx-2 mt-2': !props.isMobile }, // Desktop margins/rounding - Use props.isMobile
+               props.isMobile ? 'h-8' : 'h-10' // Mobile height h-8, Desktop h-10 - Use props.isMobile
+              ]">
+    <div class="flex items-center overflow-x-auto flex-shrink min-w-0 h-full"> <!-- Ensure inner div has h-full -->
       <draggable
         v-model="draggableSessions"
         item-key="sessionId"
@@ -521,32 +518,3 @@ onBeforeUnmount(() => {
     <TransferProgressModal v-model:visible="showTransferProgressModal" />
   </div>
 </template>
-
-<style scoped>
-.terminal-tab-shell {
-  position: relative;
-  align-items: stretch;
-  border: 1px solid rgba(103, 124, 155, 0.18);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(243, 247, 253, 0.74));
-  box-shadow: var(--shadow-card);
-  backdrop-filter: blur(18px);
-}
-
-.terminal-tab-shell--desktop {
-  margin: 1rem 1rem 0;
-  border-radius: 28px;
-}
-
-.terminal-tab-shell--mobile {
-  margin: 0.75rem 0.75rem 0;
-  border-radius: 22px;
-}
-
-.terminal-tab-shell__scroller {
-  scrollbar-width: none;
-}
-
-.terminal-tab-shell__scroller::-webkit-scrollbar {
-  display: none;
-}
-</style>

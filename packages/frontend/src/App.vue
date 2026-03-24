@@ -49,7 +49,7 @@ const altShortcutKey = ref<string | null>(null);
 const updateUnderline = async () => {
   await nextTick();
   if (navRef.value && underlineRef.value) {
-    const activeLink = navRef.value.querySelector('.app-nav__link.is-active, .app-nav__link.router-link-exact-active') as HTMLElement | null;
+    const activeLink = navRef.value.querySelector('.router-link-exact-active') as HTMLElement;
     if (activeLink) {
       underlineRef.value.style.left = `${activeLink.offsetLeft}px`;
       underlineRef.value.style.width = `${activeLink.offsetWidth}px`;
@@ -65,7 +65,6 @@ onMounted(() => {
 
   window.addEventListener('keydown', handleAltKeyDown);
   window.addEventListener('keyup', handleGlobalKeyUp);
-  window.addEventListener('resize', updateUnderline);
 
   window.addEventListener('beforeinstallprompt', () => {
     console.log('[App.vue] beforeinstallprompt event fired. Browser will handle install prompt.');
@@ -91,7 +90,6 @@ watch(
 onUnmounted(() => {
   window.removeEventListener('keydown', handleAltKeyDown);
   window.removeEventListener('keyup', handleGlobalKeyUp);
-  window.removeEventListener('resize', updateUnderline);
 });
 
 const isWorkspaceRoute = computed(() => route.path === '/workspace');
@@ -370,18 +368,9 @@ const handleGlobalKeyUp = async (event: KeyboardEvent) => {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  min-width: 0;
-  max-width: 100%;
   padding: 0.35rem;
   border-radius: 18px;
   background: rgba(241, 245, 251, 0.9);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-
-.app-nav::-webkit-scrollbar {
-  display: none;
 }
 
 .app-nav__link {
