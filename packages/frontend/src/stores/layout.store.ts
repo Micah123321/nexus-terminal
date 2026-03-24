@@ -56,6 +56,29 @@ function isLegacyDefaultLayout(node: LayoutNode | null): boolean {
   );
 }
 
+function isLegacyWorkbenchLayout(node: LayoutNode | null): boolean {
+  if (!node || node.type !== 'container' || node.direction !== 'horizontal' || !node.children || node.children.length !== 3) {
+    return false;
+  }
+
+  const [leftColumn, centerColumn, rightColumn] = node.children;
+
+  return Boolean(
+    isPaneNode(leftColumn, 'workbench') &&
+    leftColumn?.size === 23 &&
+    centerColumn?.type === 'container' &&
+    centerColumn.direction === 'vertical' &&
+    centerColumn.size === 57 &&
+    centerColumn.children?.length === 2 &&
+    isPaneNode(centerColumn.children[0], 'terminal') &&
+    centerColumn.children[0]?.size === 94 &&
+    isPaneNode(centerColumn.children[1], 'commandBar') &&
+    centerColumn.children[1]?.size === 6 &&
+    isPaneNode(rightColumn, 'statusMonitor') &&
+    rightColumn?.size === 20
+  );
+}
+
 // 定义默认布局结构
 const getDefaultLayout = (): LayoutNode => ({
   id: generateId(), // Generate new ID
@@ -66,13 +89,13 @@ const getDefaultLayout = (): LayoutNode => ({
       id: generateId(), // Generate new ID
       type: "pane",
       component: "workbench",
-      size: 23
+      size: 17
     },
     {
       id: generateId(), // Generate new ID
       type: "container",
       direction: "vertical",
-      size: 57,
+      size: 66,
       children: [
         {
           id: generateId(), // Generate new ID
@@ -92,7 +115,7 @@ const getDefaultLayout = (): LayoutNode => ({
       id: generateId(), // Generate new ID
       type: "pane",
       component: "statusMonitor",
-      size: 20
+      size: 17
     }
   ]
 });
@@ -202,8 +225,8 @@ function normalizeLoadedLayout(node: LayoutNode | null): LayoutNode | null {
     const layoutWithIds = ensureNodeIds(node);
     if (!layoutWithIds) return null;
 
-    if (isLegacyDefaultLayout(layoutWithIds)) {
-        console.log('[Layout Store] Detected legacy workspace default layout, migrating to workbench layout.');
+    if (isLegacyDefaultLayout(layoutWithIds) || isLegacyWorkbenchLayout(layoutWithIds)) {
+        console.log('[Layout Store] Detected legacy workspace default layout, migrating to the latest workbench layout.');
         return ensureNodeIds(getDefaultLayout());
     }
 

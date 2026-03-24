@@ -3,13 +3,14 @@ import { computed, ref, watch, type PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import CommandHistoryView from '../views/CommandHistoryView.vue';
+import QuickCommandsView from '../views/QuickCommandsView.vue';
 import FileManager from './FileManager.vue';
 import FileEditorContainer from './FileEditorContainer.vue';
 import { useSessionStore } from '../stores/session.store';
 import type { FileTab } from '../stores/fileEditor.store';
 import type { WebSocketDependencies } from '../composables/useSftpActions';
 
-type WorkbenchTab = 'files' | 'history' | 'editor';
+type WorkbenchTab = 'quickCommands' | 'files' | 'history' | 'editor';
 
 const props = defineProps({
   tabs: {
@@ -42,9 +43,14 @@ const { t } = useI18n();
 const sessionStore = useSessionStore();
 const { sessions } = storeToRefs(sessionStore);
 
-const activeWorkbenchTab = ref<WorkbenchTab>('files');
+const activeWorkbenchTab = ref<WorkbenchTab>('quickCommands');
 
 const workbenchTabs = computed(() => [
+  {
+    id: 'quickCommands' as const,
+    label: t('workspace.workbench.tabs.quickCommands', '快捷指令'),
+    icon: 'fas fa-bolt',
+  },
   {
     id: 'files' as const,
     label: t('workspace.workbench.tabs.files', '文件'),
@@ -106,7 +112,7 @@ watch(
           {{ t('workspace.workbench.label', '工作台') }}
         </span>
       </div>
-      <div class="mt-3 grid grid-cols-3 gap-2">
+      <div class="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
         <button
           v-for="tab in workbenchTabs"
           :key="tab.id"
@@ -126,6 +132,10 @@ watch(
     </div>
 
     <div class="relative flex-1 min-h-0 overflow-hidden bg-background">
+      <div v-show="activeWorkbenchTab === 'quickCommands'" class="absolute inset-0 min-h-0 workbench-quick-commands">
+        <QuickCommandsView />
+      </div>
+
       <div v-show="activeWorkbenchTab === 'files'" class="absolute inset-0 min-h-0">
         <FileManager
           v-if="hasFileManagerContext"
@@ -163,3 +173,58 @@ watch(
     </div>
   </div>
 </template>
+
+<style scoped>
+.workbench-quick-commands {
+  background:
+    linear-gradient(180deg, rgba(15, 17, 22, 0.98) 0%, rgba(12, 14, 18, 1) 100%);
+}
+
+.workbench-quick-commands :deep(> div),
+.workbench-quick-commands :deep(> div > div) {
+  background: transparent;
+}
+
+.workbench-quick-commands :deep(input) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f5f7fa;
+  box-shadow: none;
+}
+
+.workbench-quick-commands :deep(input::placeholder) {
+  color: rgba(226, 232, 240, 0.55);
+}
+
+.workbench-quick-commands :deep(button) {
+  box-shadow: none;
+}
+
+.workbench-quick-commands :deep([data-command-id]) {
+  position: relative;
+  border-radius: 10px;
+  color: #f8fafc;
+}
+
+.workbench-quick-commands :deep([data-command-id]::before) {
+  content: '';
+  position: absolute;
+  left: 0.2rem;
+  top: 0.2rem;
+  bottom: 0.2rem;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.workbench-quick-commands :deep([data-command-id]:hover) {
+  background: rgba(139, 92, 246, 0.14);
+}
+
+.workbench-quick-commands :deep([data-command-id].bg-primary\/20) {
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.3), rgba(139, 92, 246, 0.18));
+}
+
+.workbench-quick-commands :deep(.font-semibold.flex.items-center) {
+  color: #f8fafc;
+}
+</style>

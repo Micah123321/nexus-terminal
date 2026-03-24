@@ -1281,6 +1281,7 @@
         "noSession": "No active session",
         "fileManagerHint": "Activate an SSH session to browse remote files.",
         "tabs": {
+          "quickCommands": "Quick Commands",
           "files": "Files",
           "history": "History",
           "editor": "Editor"

@@ -573,6 +573,7 @@
             "noSession": "アクティブなセッションはありません",
             "fileManagerHint": "SSH セッションを有効にするとリモートファイルを参照できます。",
             "tabs": {
+                "quickCommands": "クイックコマンド",
                 "files": "ファイル",
                 "history": "履歴",
                 "editor": "エディター"

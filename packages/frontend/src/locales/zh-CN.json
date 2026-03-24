@@ -1285,6 +1285,7 @@
         "noSession": "未激活会话",
         "fileManagerHint": "激活一个 SSH 会话后即可浏览远程文件。",
         "tabs": {
+          "quickCommands": "快捷指令",
           "files": "文件",
           "history": "历史命令",
           "editor": "编辑器"

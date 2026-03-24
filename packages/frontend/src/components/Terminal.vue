@@ -739,6 +739,17 @@ watchEffect(() => {
   /* z-index 调整或移除，因为背景层不再在此组件内 */
 }
 
+.terminal-inner-container,
+.terminal-inner-container :deep(.xterm),
+.terminal-inner-container :deep(.xterm-screen),
+.terminal-inner-container :deep(.xterm-viewport) {
+  cursor: default !important;
+}
+
+.terminal-inner-container :deep(.xterm .xterm-cursor-pointer) {
+  cursor: pointer !important;
+}
+
 /* 文字描边和阴影样式 */
 .terminal-inner-container.has-text-stroke :deep(.xterm-rows span),
 .terminal-inner-container.has-text-stroke :deep(.xterm-rows div > span), /* 更具体地针对嵌套 span */
