@@ -15,7 +15,7 @@
 语言: TypeScript, Vue, Node.js
 框架: Vue 3, Vite, Express 5
 包管理器: npm workspaces
-构建工具: Vite（frontend）, TypeScript 编译（backend/remote-gateway）, Docker Compose（部署）
+构建工具: Vite（frontend）, TypeScript 编译（backend/remote-gateway）, GitHub Actions + GHCR（镜像发布）, Docker Compose（部署）
 ```
 
 ### 主要依赖
