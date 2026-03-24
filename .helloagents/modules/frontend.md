@@ -36,8 +36,8 @@
 
 ### 工作区交互
 **条件**: 用户进入 `/workspace` 或相关管理页面。  
-**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。  
-**结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中布局与交互微调优先落在 `layout.store.ts`、`LayoutRenderer.vue`、`WorkspaceWorkbench.vue` 和 `Terminal.vue`。
+**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值。  
+**结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中布局与交互微调优先落在 `layout.store.ts`、`LayoutRenderer.vue`、`WorkspaceWorkbench.vue`、`QuickCommandsView.vue` 和 `Terminal.vue`。
 
 ## 依赖关系
 
