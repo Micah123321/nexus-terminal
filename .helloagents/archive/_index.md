@@ -7,6 +7,7 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202603260527 | file-manager-context-submenu-regression | implementation | frontend | file-manager-context-submenu-regression#D001 | ✅完成 |
 | 202603260324 | file-manager-delete-upload-stability | implementation | frontend, backend | file-manager-delete-upload-stability#D001 | ✅完成 |
 | 202603260310 | file-manager-root-sibling-bootstrap | implementation | frontend | file-manager-root-sibling-bootstrap#D001 | ✅完成 |
 | 202603260234 | folder-upload-auto-zip | implementation | frontend | folder-upload-auto-zip#D001 | ✅完成 |
@@ -39,6 +40,7 @@
 ## 按月归档
 
 ### 2026-03
+- [202603260527_file-manager-context-submenu-regression](./2026-03/202603260527_file-manager-context-submenu-regression/) - 修复文件管理器右键菜单回归关闭竞态，恢复终端、上传、压缩等子菜单展开与点击
 - [202603260324_file-manager-delete-upload-stability](./2026-03/202603260324_file-manager-delete-upload-stability/) - 修复文件管理器右键子菜单点击、拖拽上传目标确认、目录删除模式选择与删除后路径失效回退
 - [202603260234_folder-upload-auto-zip](./2026-03/202603260234_folder-upload-auto-zip/) - 为文件管理器补齐上传文件夹入口，选择目录后先打包为 zip，再上传并自动触发远端解压
 - [202603260228_file-context-menu-terminal-actions](./2026-03/202603260228_file-context-menu-terminal-actions/) - 重排文件区右键菜单结构，并补齐终端子菜单、复制文件名和复制绝对路径等动作

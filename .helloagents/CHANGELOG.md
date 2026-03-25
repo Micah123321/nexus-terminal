@@ -8,6 +8,8 @@
 - 2026-03-25：继续微调 `/workspace` Workbench，新增默认“快捷指令”标签、调整三栏宽度到更接近 xterminal 参考图，并修复终端区域鼠标悬停时指针异常消失的问题。
 
 ### 修复
+- **[frontend]**: 修复文件管理器右键菜单的回归关闭竞态，避免“终端 / 上传 / 压缩”子菜单在展开或点击前被捕获阶段监听提前关闭 — by yinjianm
+  - 方案: [202603260527_file-manager-context-submenu-regression](archive/2026-03/202603260527_file-manager-context-submenu-regression/)
 - **[frontend]**: 修复文件管理器右键子菜单点击无反应、拖拽上传目标不明确，以及目录删除后持续报 `No such file` 的稳定性问题 — by yinjianm
   - 方案: [202603260324_file-manager-delete-upload-stability](archive/2026-03/202603260324_file-manager-delete-upload-stability/)
 - **[backend]**: 为 `sftp:rmdir` 增加 `recursive` 分支，让“仅删空目录”和“强制递归删除”分别落到 SFTP 原生删除与 `rm -rf` 链路 — by yinjianm
@@ -32,6 +34,9 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 快速修改
+- **[workspace-root]**: 将双语 README 的仓库、发布与下载链接统一切到 `Micah123321/nexus-terminal`，移除 Ko-fi，并补充源项目指向 — by yinjianm
+  - 类型: 快速修改（无方案包）
+  - 文件: README.md, doc/README_EN.md
 - **[frontend]**: 将前端关于页、版本检查和样式仓库默认链接切换到 `Micah123321/nexus-terminal`，并移除 Ko-fi 入口 — by yinjianm
   - 类型: 快速修改（无方案包）
   - 文件: packages/frontend/src/composables/settings/useVersionCheck.ts, packages/frontend/src/composables/settings/useAboutSection.ts, packages/frontend/src/components/settings/AboutSection.vue, packages/frontend/src/App.vue, packages/frontend/src/components/style-customizer/StyleCustomizerBackgroundTab.vue, package.json
