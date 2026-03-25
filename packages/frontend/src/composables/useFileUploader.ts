@@ -1,8 +1,7 @@
-import { ref, reactive, nextTick, onUnmounted, readonly, type Ref, watchEffect } from 'vue';
-import { createWebSocketConnectionManager } from './useWebSocketConnection'; 
+import { reactive, nextTick, onUnmounted, type Ref, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FileListItem } from '../types/sftp.types'; 
-import type { UploadItem } from '../types/upload.types'; 
+import type { UploadItem, UploadTaskMode } from '../types/upload.types'; 
 import type { WebSocketMessage, MessagePayload } from '../types/websocket.types'; 
 
 
@@ -27,10 +26,86 @@ export function useFileUploader(
     wsDeps: Ref<WebSocketDependencies> 
 ) {
     const { t } = useI18n();
-wsDeps;
-
-    // 对 uploads 字典使用 reactive 以获得更好的深度响应性
     const uploads = reactive<Record<string, UploadItem>>({});
+    const uploadHooks = new Map<string, { afterUpload?: (context: { uploadId: string; remotePath: string; item: UploadItem; }) => Promise<void> }>();
+
+    const cleanupUploadTask = (uploadId: string, delayMs = 0) => {
+        const removeTask = () => {
+            delete uploads[uploadId];
+            uploadHooks.delete(uploadId);
+        };
+
+        if (delayMs > 0) {
+            setTimeout(removeTask, delayMs);
+            return;
+        }
+
+        removeTask();
+    };
+
+    const getErrorMessage = (payload: MessagePayload, fallback: string): string => {
+        if (typeof payload === 'string') {
+            return payload;
+        }
+
+        if (payload && typeof payload === 'object' && 'message' in payload && typeof payload.message === 'string') {
+            return payload.message;
+        }
+
+        return fallback;
+    };
+
+    const getUploadId = (payload: MessagePayload, message: WebSocketMessage): string | undefined => {
+        if (message.uploadId) {
+            return message.uploadId;
+        }
+
+        if (payload && typeof payload === 'object' && 'uploadId' in payload && typeof payload.uploadId === 'string') {
+            return payload.uploadId;
+        }
+
+        return undefined;
+    };
+
+    const createUploadTask = (
+        filename: string,
+        initial: Partial<UploadItem> = {},
+    ): string => {
+        const uploadId = generateUploadId();
+        uploads[uploadId] = {
+            id: uploadId,
+            file: null,
+            filename,
+            progress: 0,
+            status: 'pending',
+            mode: initial.mode ?? 'file',
+            ...initial,
+        };
+        return uploadId;
+    };
+
+    const updateUploadTask = (uploadId: string, patch: Partial<UploadItem>) => {
+        const upload = uploads[uploadId];
+        if (!upload) {
+            return;
+        }
+
+        Object.assign(upload, patch);
+    };
+
+    const buildRemotePath = (file: File, relativePath?: string) => {
+        let finalRemotePath: string;
+        if (relativePath) {
+            const basePath = currentPathRef.value.endsWith('/') ? currentPathRef.value : `${currentPathRef.value}/`;
+            let cleanRelativePath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
+            cleanRelativePath = cleanRelativePath.endsWith('/') ? cleanRelativePath.slice(0, -1) : cleanRelativePath;
+            finalRemotePath = `${basePath}${cleanRelativePath ? `${cleanRelativePath}/` : ''}${file.name}`;
+        } else {
+            finalRemotePath = joinPath(currentPathRef.value, file.name);
+        }
+
+        return finalRemotePath.replace(/\/+/g, '/');
+    };
 
     // --- 上传逻辑 ---
 
@@ -116,43 +191,49 @@ wsDeps;
     };
 
 
-    const startFileUpload = (file: File, relativePath?: string) => {
-        // Roo: 使用 .value 访问响应式的 sessionIdForLog
+    const startFileUpload = (
+        file: File,
+        relativePath?: string,
+        options?: {
+            uploadId?: string;
+            displayName?: string;
+            mode?: UploadTaskMode;
+            detail?: string;
+            afterUpload?: (context: { uploadId: string; remotePath: string; item: UploadItem; }) => Promise<void>;
+        }
+    ) => {
         if (!wsDeps.value.isConnected.value) { 
             console.warn(`[FileUploader ${sessionIdForLog.value}] Cannot start upload: WebSocket not connected.`);
-            
+            if (options?.uploadId && uploads[options.uploadId]) {
+                updateUploadTask(options.uploadId, {
+                    status: 'error',
+                    error: t('fileManager.errors.uploadFailed'),
+                });
+                cleanupUploadTask(options.uploadId, 5000);
+            }
             return;
         }
 
-        const uploadId = generateUploadId();
-        
-        let finalRemotePath: string;
-        if (relativePath) {
-            
-            const basePath = currentPathRef.value.endsWith('/') ? currentPathRef.value : `${currentPathRef.value}/`;
-            // 确保 relativePath 开头没有斜杠，末尾有斜杠 (如果非空)
-            let cleanRelativePath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
-            // 移除末尾斜杠（如果有），因为文件名会加上
-            cleanRelativePath = cleanRelativePath.endsWith('/') ? cleanRelativePath.slice(0, -1) : cleanRelativePath;
-            // 拼接路径，确保 cleanRelativePath 和 file.name 之间只有一个斜杠
-            finalRemotePath = `${basePath}${cleanRelativePath ? cleanRelativePath + '/' : ''}${file.name}`;
-        } else {
-            finalRemotePath = joinPath(currentPathRef.value, file.name); // 对于非文件夹上传，保持原样
-        }
-        // 规范化路径，移除多余的斜杠 e.g. /root//dir -> /root/dir
-        finalRemotePath = finalRemotePath.replace(/\/+/g, '/');
+        const uploadId = options?.uploadId ?? generateUploadId();
+        const finalRemotePath = buildRemotePath(file, relativePath);
         console.log(`[FileUploader ${sessionIdForLog.value}] Calculated finalRemotePath: ${finalRemotePath} (current: ${currentPathRef.value}, relative: ${relativePath}, filename: ${file.name}) // wsDeps.isSftpReady: ${wsDeps.value.isSftpReady.value}`); 
-        // --- 结束修正 ---
 
-
-        // 添加到响应式 uploads 字典
         uploads[uploadId] = {
             id: uploadId,
             file,
-            filename: file.name,
+            filename: options?.displayName ?? uploads[uploadId]?.filename ?? file.name,
             progress: 0,
-            status: 'pending' // 初始状态
+            status: 'pending',
+            mode: options?.mode ?? uploads[uploadId]?.mode ?? 'file',
+            remotePath: finalRemotePath,
+            detail: options?.detail,
         };
+
+        if (options?.afterUpload) {
+            uploadHooks.set(uploadId, { afterUpload: options.afterUpload });
+        } else {
+            uploadHooks.delete(uploadId);
+        }
 
         console.log(`[FileUploader ${sessionIdForLog.value}] Starting upload ${uploadId} to ${finalRemotePath}`);
         wsDeps.value.sendMessage({ 
@@ -172,23 +253,18 @@ wsDeps;
                 wsDeps.value.sendMessage({ type: 'sftp:upload:cancel', payload: { uploadId } }); 
             }
 
-            // 短暂延迟后从列表中移除，以显示取消状态
-            setTimeout(() => {
-                if (uploads[uploadId]?.status === 'cancelled') {
-                    delete uploads[uploadId];
-                }
-            }, 3000);
+            cleanupUploadTask(uploadId, 3000);
         }
     };
 
     // --- 消息处理器 ---
 
     const onUploadReady = (payload: MessagePayload, message: WebSocketMessage) => {
-        const uploadId = message.uploadId || payload?.uploadId;
+        const uploadId = getUploadId(payload, message);
         if (!uploadId) return;
 
         const upload = uploads[uploadId];
-        if (upload && upload.status === 'pending') {
+        if (upload && upload.status === 'pending' && upload.file) {
             console.log(`[FileUploader ${sessionIdForLog.value}] Upload ${uploadId} ready, starting chunk sending.`);
             upload.status = 'uploading';
             sendFileChunks(uploadId, upload.file); // 开始发送块
@@ -197,22 +273,32 @@ wsDeps;
         }
     };
 
-    const onUploadSuccess = (payload: MessagePayload, message: WebSocketMessage) => {
-        const uploadId = message.uploadId || payload?.uploadId;
+    const onUploadSuccess = async (payload: MessagePayload, message: WebSocketMessage) => {
+        const uploadId = getUploadId(payload, message);
         if (!uploadId) return;
 
         const upload = uploads[uploadId];
         if (upload) {
+            const remotePath = message.path || upload.remotePath;
             console.log(`[FileUploader ${sessionIdForLog.value}] Upload ${uploadId} successful.`);
-            upload.status = 'success';
             upload.progress = 100;
 
-
-            // 立即删除记录
-            if (uploads[uploadId]) { // 确保记录仍然存在
-                delete uploads[uploadId];
+            const hook = uploadHooks.get(uploadId);
+            if (hook?.afterUpload && remotePath) {
+                upload.status = 'decompressing';
+                try {
+                    await hook.afterUpload({ uploadId, remotePath, item: upload });
+                    upload.status = 'success';
+                    cleanupUploadTask(uploadId, 1200);
+                } catch (error: any) {
+                    upload.status = 'error';
+                    upload.error = error?.message || t('fileManager.errors.decompressFailed');
+                    cleanupUploadTask(uploadId, 5000);
+                }
+            } else {
+                upload.status = 'success';
+                cleanupUploadTask(uploadId);
             }
-
         } else {
             console.warn(`[FileUploader ${sessionIdForLog.value}] Received upload:success for unknown upload ID: ${uploadId}`);
         }
@@ -228,24 +314,18 @@ wsDeps;
 
         const upload = uploads[uploadId];
         if (upload) {
-            const errorMessage = typeof payload === 'string' ? payload : t('fileManager.errors.uploadFailed');
+            const errorMessage = getErrorMessage(payload, t('fileManager.errors.uploadFailed'));
             console.error(`[FileUploader ${sessionIdForLog.value}] Upload ${uploadId} error:`, errorMessage);
             upload.status = 'error';
-            upload.error = errorMessage; // 使用 payload 作为错误消息
-
-            // 让错误消息可见时间长一些
-            setTimeout(() => {
-                if (uploads[uploadId]?.status === 'error') {
-                    delete uploads[uploadId];
-                }
-            }, 5000);
+            upload.error = errorMessage;
+            cleanupUploadTask(uploadId, 5000);
         } else {
              console.warn(`[FileUploader ${sessionIdForLog.value}] Received upload:error for unknown upload ID: ${uploadId}`);
         }
     };
 
     const onUploadPause = (payload: MessagePayload, message: WebSocketMessage) => {
-        const uploadId = message.uploadId || payload?.uploadId;
+        const uploadId = getUploadId(payload, message);
         if (!uploadId) return;
         const upload = uploads[uploadId];
         if (upload && upload.status === 'uploading') {
@@ -255,10 +335,10 @@ wsDeps;
     };
 
     const onUploadResume = (payload: MessagePayload, message: WebSocketMessage) => {
-        const uploadId = message.uploadId || payload?.uploadId;
+        const uploadId = getUploadId(payload, message);
         if (!uploadId) return;
         const upload = uploads[uploadId];
-        if (upload && upload.status === 'paused') {
+        if (upload && upload.status === 'paused' && upload.file) {
             console.log(`[FileUploader ${sessionIdForLog.value}] Resuming upload ${uploadId}`);
             upload.status = 'uploading';
             sendFileChunks(uploadId, upload.file);
@@ -266,7 +346,7 @@ wsDeps;
     };
 
      const onUploadCancelled = (payload: MessagePayload, message: WebSocketMessage) => {
-        const uploadId = message.uploadId || payload?.uploadId;
+        const uploadId = getUploadId(payload, message);
         if (!uploadId) return;
         const upload = uploads[uploadId];
         if (upload) {
@@ -277,7 +357,7 @@ wsDeps;
             // 确保它会被移除（如果尚未计划移除）
             setTimeout(() => {
                 if (uploads[uploadId]?.status === 'cancelled') {
-                    delete uploads[uploadId];
+                    cleanupUploadTask(uploadId);
                 }
             }, 3000);
         }
@@ -285,7 +365,7 @@ wsDeps;
 
     // +++ 处理上传进度更新 +++
     const onUploadProgress = (payload: MessagePayload, message: WebSocketMessage) => {
-        const uploadId = message.uploadId || payload?.uploadId; // 从顶层获取 uploadId
+        const uploadId = getUploadId(payload, message);
         if (!uploadId) {
             return;
         }
@@ -349,5 +429,8 @@ wsDeps;
         uploads, 
         startFileUpload,
         cancelUpload,
+        createUploadTask,
+        updateUploadTask,
+        cleanupUploadTask,
     };
 }

@@ -27,6 +27,14 @@ const uploadList = computed(() => Object.values(props.uploads).filter(upload => 
   return !isEffectivelySuccess && upload.status !== 'cancelled';
 }));
 
+const showProgressBar = (upload: UploadItem) => {
+  return ['compressing', 'pending', 'uploading'].includes(upload.status);
+};
+
+const showProgressValue = (upload: UploadItem) => {
+  return ['compressing', 'uploading'].includes(upload.status);
+};
+
 const handleCancel = (uploadId: string) => {
   emit('cancel-upload', uploadId);
 };
@@ -39,9 +47,14 @@ const handleCancel = (uploadId: string) => {
     <ul class="list-none p-0 m-0">
       <li v-for="upload in uploadList" :key="upload.id" class="mb-1.5 text-xs flex items-center flex-wrap gap-2">
         <span class="flex-grow truncate" :title="upload.filename">{{ upload.filename }} ({{ t(`fileManager.uploadStatus.${upload.status}`) }})</span>
-        <progress v-if="(upload.status === 'uploading' && upload.progress < 100) || upload.status === 'pending'" :value="upload.progress" max="100" class="w-20 h-2 flex-shrink-0 [&::-webkit-progress-bar]:rounded-lg [&::-webkit-progress-value]:rounded-lg [&::-webkit-progress-bar]:bg-gray-300 [&::-webkit-progress-value]:bg-blue-600 [&::-moz-progress-bar]:bg-blue-600"></progress>
-        <span v-if="upload.status === 'uploading' && upload.progress < 100" class="text-xs flex-shrink-0"> {{ upload.progress }}%</span>
+        <span v-if="upload.detail" class="basis-full text-[11px] text-text-secondary">{{ upload.detail }}</span>
+        <progress v-if="showProgressBar(upload)" :value="upload.progress" max="100" class="w-20 h-2 flex-shrink-0 [&::-webkit-progress-bar]:rounded-lg [&::-webkit-progress-value]:rounded-lg [&::-webkit-progress-bar]:bg-gray-300 [&::-webkit-progress-value]:bg-blue-600 [&::-moz-progress-bar]:bg-blue-600"></progress>
+        <span v-if="showProgressValue(upload)" class="text-xs flex-shrink-0"> {{ upload.progress }}%</span>
         <span v-if="upload.status === 'error'" class="text-red-600 basis-full text-xs"> {{ t('fileManager.errors.generic') }}: {{ upload.error }}</span>
+        <span v-if="upload.status === 'decompressing'" class="text-xs text-text-secondary flex items-center gap-1">
+          <i class="fas fa-spinner fa-spin"></i>
+          {{ t('fileManager.uploadStatus.decompressing') }}
+        </span>
         <span v-if="upload.status === 'success' || (upload.status === 'uploading' && upload.progress === 100)" class="text-green-600"> ✅</span>
         <span v-if="upload.status === 'cancelled'" class="text-red-600"> ❌ {{ t('fileManager.uploadStatus.cancelled') }}</span>
         <!-- 只有在可取消状态时显示取消按钮 -->

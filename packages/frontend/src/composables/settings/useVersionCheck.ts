@@ -3,16 +3,24 @@ import axios from 'axios';
 import pkg from '../../../package.json'; // 调整路径以正确导入 package.json
 import { useI18n } from 'vue-i18n';
 
+const normalizeVersionLabel = (version: string) => {
+  const cleanVersion = version.startsWith('v') ? version.slice(1) : version;
+  return cleanVersion.replace(/^(\d+\.\d+)\.0$/, '$1');
+};
+
 export function useVersionCheck() {
   const { t } = useI18n();
-  const appVersion = ref(pkg.version);
+  const appVersion = ref(normalizeVersionLabel(pkg.version));
   const latestVersion = ref<string | null>(null);
   const isCheckingVersion = ref(false);
   const versionCheckError = ref<string | null>(null);
 
   const isUpdateAvailable = computed(() => {
-    // 简单的字符串比较，假设 tag 格式为 vX.Y.Z
-    return latestVersion.value && latestVersion.value !== `v${appVersion.value}`;
+    if (!latestVersion.value) {
+      return false;
+    }
+
+    return normalizeVersionLabel(latestVersion.value) !== appVersion.value;
   });
 
   const checkLatestVersion = async () => {

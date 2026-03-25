@@ -448,6 +448,7 @@
       "refresh": "刷新",
       "parentDirectory": "上一级",
       "uploadFile": "上传文件",
+      "uploadFolder": "上传文件夹",
       "upload": "上传",
       "newFolder": "新建文件夹",
       "newFile": "新建文件",
@@ -463,11 +464,16 @@
       "closeTab": "关闭标签页",
       "closeEditor": "关闭编辑器",
       "cdToTerminal": "将终端目录切换到当前路径",
+      "cdToTerminalMenu": "执行 cd 命令到终端",
       "copy": "复制",
+      "copyFilename": "复制文件名",
       "cut": "剪切",
       "paste": "粘贴",
       "openEditor": "打开编辑器",
-      "copyPath": "复制路径"
+      "copyPath": "复制绝对路径",
+      "terminalMenu": "终端",
+      "newTerminalAtPath": "新建终端到当前目录",
+      "uploadMenu": "上传"
     },
 "contextMenu": {
       "compress": "压缩",
@@ -485,7 +491,9 @@
       "modified": "修改时间"
     },
     "uploadStatus": {
+      "compressing": "压缩中",
       "cancelled": "已取消",
+      "decompressing": "解压中",
       "pending": "等待中",
       "uploading": "上传中"
     },
@@ -506,6 +514,7 @@
       "loadDirectoryFailed": "加载目录失败",
       "copyFailed": "复制失败",
       "moveFailed": "移动失败",
+      "uploadFailed": "上传失败",
       "sftpNotReady": "SFTP 会话未就绪",
       "sftpManagerNotFound": "SFTP 管理器未找到",
       "noActiveSession": "未找到活动会话",
@@ -522,7 +531,10 @@
       "commandNotFoundCompress": "服务器上缺少 '{command}' 命令，无法完成压缩操作。",
       "commandNotFoundDecompress": "服务器上缺少 '{command}' 命令，无法完成解压操作。",
       "genericCommandNotFound": "服务器上缺少 '{command}' 命令，无法完成 '{operation}' 操作。",
-      "copyPathFailed": "复制路径失败"
+      "folderCompressionFailed": "文件夹压缩失败",
+      "archiveCleanupFailed": "自动清理临时压缩包 {name} 失败，请手动删除。",
+      "copyPathFailed": "复制路径失败",
+      "copyFilenameFailed": "复制文件名失败"
   },
   "notifications": {
     "copySuccess": "复制成功",
@@ -530,7 +542,12 @@
     "cdCommandSent": "CD 命令已发送到终端",
     "compressSuccess": "压缩 {name} 成功",
     "decompressSuccess": "解压 {name} 成功",
-    "pathCopied": "路径已复制到剪贴板"
+    "folderArchiveQueued": "已选择 {count} 个文件，准备压缩上传",
+    "folderArchivePreparing": "正在压缩 {count} 个文件",
+    "folderArchiveReady": "压缩完成，准备上传 {count} 个文件",
+    "folderArchiveUploading": "正在上传压缩包并准备自动解压",
+    "pathCopied": "路径已复制到剪贴板",
+    "filenameCopied": "文件名已复制到剪贴板"
   },
   "warnings": {
         "moveSameDirectory": "不能在同一目录下剪切和粘贴。"

@@ -133,6 +133,9 @@ onUnmounted(() => {
 const emit = defineEmits(['item-click', 'close-request']); // 添加 close-request
 
 const handleItemClick = (item: ContextMenuItem) => {
+  if (item.disabled) {
+    return;
+  }
   if (item.action) {
     item.action(); // 只有当 action 存在时才执行
     emit('close-request'); // <-- 发出关闭请求
@@ -221,13 +224,13 @@ onUnmounted(() => {
   <div
     ref="contextMenuRef"
     v-if="isVisible"
-    class="fixed bg-background border border-border shadow-lg rounded-md z-[1002] min-w-[150px]"
+    class="fixed bg-background/98 border border-border/80 shadow-[0_18px_40px_rgba(0,0,0,0.36)] rounded-xl z-[1002] min-w-[184px] overflow-hidden backdrop-blur-sm"
     :style="{ top: `${computedRenderPosition.y}px`, left: `${computedRenderPosition.x}px` }"
     @click.stop
   >
-    <ul class="list-none p-1 m-0">
+    <ul class="list-none p-1.5 m-0">
       <template v-for="(menuItem, index) in items" :key="index">
-        <li v-if="menuItem.separator" class="border-t border-border/50 my-1 mx-1"></li>
+        <li v-if="menuItem.separator" class="border-t border-border/60 my-1.5 mx-2"></li>
         <!-- 如果是移动设备且有子菜单，则平铺子菜单 -->
         <template v-else-if="isMobile && menuItem.submenu && menuItem.submenu.length > 0">
           <li
@@ -235,10 +238,15 @@ onUnmounted(() => {
             :key="`${index}-${subIndex}`"
             @click.stop="handleItemClick(subItem)"
             :class="[
-              'px-4 py-1.5 cursor-pointer text-foreground text-sm flex items-center transition-colors duration-150 rounded mx-1',
-              'hover:bg-primary/10 hover:text-primary'
+              'px-3 py-2.5 text-sm flex items-center gap-2.5 transition-colors duration-150 rounded-lg mx-0.5',
+              subItem.disabled
+                ? 'cursor-not-allowed opacity-50 text-text-secondary'
+                : subItem.danger
+                  ? 'cursor-pointer text-error hover:bg-error/10'
+                  : 'cursor-pointer text-foreground hover:bg-primary/10 hover:text-primary'
             ]"
           >
+            <i v-if="subItem.icon" :class="[subItem.icon, 'w-4 text-center flex-shrink-0']"></i>
             {{ subItem.label }}
           </li>
           <!-- 如果 menuItem (作为移动端子菜单容器) 是 "压缩", 在其子项后添加 "发送到" -->
@@ -246,7 +254,7 @@ onUnmounted(() => {
             <li
               @click.stop="handleSendToClick"
               :class="[
-                'px-4 py-1.5 cursor-pointer text-foreground text-sm flex items-center transition-colors duration-150 rounded mx-1',
+                'px-3 py-2.5 cursor-pointer text-foreground text-sm flex items-center gap-2.5 transition-colors duration-150 rounded-lg mx-0.5',
                 'hover:bg-primary/10 hover:text-primary'
               ]"
             >
@@ -259,10 +267,15 @@ onUnmounted(() => {
           v-else-if="!menuItem.submenu"
           @click.stop="handleItemClick(menuItem)"
           :class="[
-            'px-4 py-1.5 cursor-pointer text-foreground text-sm flex items-center transition-colors duration-150 rounded mx-1',
-            'hover:bg-primary/10 hover:text-primary'
+            'px-3 py-2.5 text-sm flex items-center gap-2.5 transition-colors duration-150 rounded-lg mx-0.5',
+            menuItem.disabled
+              ? 'cursor-not-allowed opacity-50 text-text-secondary'
+              : menuItem.danger
+                ? 'cursor-pointer text-error hover:bg-error/10'
+                : 'cursor-pointer text-foreground hover:bg-primary/10 hover:text-primary'
           ]"
         >
+          <i v-if="menuItem.icon" :class="[menuItem.icon, 'w-4 text-center flex-shrink-0']"></i>
           {{ menuItem.label }}
         </li>
         <!-- 如果普通菜单项是 "压缩", 在其后添加 "发送到" -->
@@ -279,15 +292,25 @@ onUnmounted(() => {
         </template>
         <li
           v-if="menuItem.submenu && !isMobile"
-          class="px-4 py-1.5 text-foreground text-sm flex items-center justify-between transition-colors duration-150 rounded mx-1 hover:bg-primary/10 hover:text-primary relative"
+          :class="[
+            'px-3 py-2.5 text-sm flex items-center justify-between transition-colors duration-150 rounded-lg mx-0.5 relative',
+            menuItem.disabled
+              ? 'cursor-not-allowed opacity-50 text-text-secondary'
+              : menuItem.danger
+                ? 'cursor-pointer text-error hover:bg-error/10'
+                : 'cursor-pointer text-foreground hover:bg-primary/10 hover:text-primary'
+          ]"
           @mouseenter="showSubmenu(menuItem.label)"
           @mouseleave="hideSubmenu()"
         >
-          {{ menuItem.label }}
+          <span class="flex items-center gap-3 min-w-0">
+            <i v-if="menuItem.icon" :class="[menuItem.icon, 'w-4 text-center flex-shrink-0']"></i>
+            <span class="truncate">{{ menuItem.label }}</span>
+          </span>
           <span class="ml-2">›</span>
           <ul
             v-if="expandedSubmenu === menuItem.label"
-            class="absolute left-full top-0 mt-0 ml-1 bg-background border border-border shadow-lg rounded-md z-[1003] min-w-[150px] list-none p-1"
+            class="absolute left-full top-0 mt-0 ml-2 bg-background/98 border border-border/80 shadow-[0_18px_40px_rgba(0,0,0,0.32)] rounded-xl z-[1003] min-w-[184px] list-none p-1.5"
             @mouseenter="showSubmenu(menuItem.label)"
             @mouseleave="hideSubmenu()"
           >
@@ -296,10 +319,15 @@ onUnmounted(() => {
               :key="subIndex"
               @click.stop="handleItemClick(subItem)"
               :class="[
-                'px-4 py-1.5 cursor-pointer text-foreground text-sm flex items-center transition-colors duration-150 rounded mx-1',
-                'hover:bg-primary/10 hover:text-primary'
+                'px-3 py-2.5 text-sm flex items-center gap-2.5 transition-colors duration-150 rounded-lg mx-0.5',
+                subItem.disabled
+                  ? 'cursor-not-allowed opacity-50 text-text-secondary'
+                  : subItem.danger
+                    ? 'cursor-pointer text-error hover:bg-error/10'
+                    : 'cursor-pointer text-foreground hover:bg-primary/10 hover:text-primary'
               ]"
             >
+              <i v-if="subItem.icon" :class="[subItem.icon, 'w-4 text-center flex-shrink-0']"></i>
               {{ subItem.label }}
             </li>
           </ul>
@@ -309,7 +337,7 @@ onUnmounted(() => {
           <li
             @click.stop="handleSendToClick"
             :class="[
-              'px-4 py-1.5 cursor-pointer text-foreground text-sm flex items-center transition-colors duration-150 rounded mx-1',
+              'px-3 py-2.5 cursor-pointer text-foreground text-sm flex items-center gap-2.5 transition-colors duration-150 rounded-lg mx-0.5',
               'hover:bg-primary/10 hover:text-primary'
             ]"
           >

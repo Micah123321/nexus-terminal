@@ -439,6 +439,7 @@
             "closeEditor": "エディターを閉じる",
             "closeTab": "タブを閉じる",
             "copy": "コピー",
+            "copyFilename": "ファイル名をコピー",
             "cut": "切り取り",
             "delete": "削除",
             "deleteMultiple": "{count} 個の項目を削除",
@@ -455,7 +456,12 @@
             "save": "保存",
             "upload": "アップロード",
             "uploadFile": "ファイルをアップロード",
-            "copyPath": "パスをコピー"
+            "uploadFolder": "フォルダをアップロード",
+            "copyPath": "絶対パスをコピー",
+            "cdToTerminalMenu": "cd コマンドをターミナルで実行",
+            "terminalMenu": "ターミナル",
+            "newTerminalAtPath": "このディレクトリで新しいターミナルを開く",
+            "uploadMenu": "アップロード"
         },
 "contextMenu": {
       "compress": "圧縮",
@@ -484,6 +490,7 @@
             "loadDirectoryFailed": "ディレクトリの読み込みに失敗しました",
             "missingConnectionId": "現在の接続 ID を取得できません",
             "moveFailed": "移動に失敗しました",
+            "uploadFailed": "アップロードに失敗しました",
             "noActiveSession": "アクティブなセッションが見つかりません",
             "readFileError": "ファイルの読み取り中にエラーが発生しました",
             "readFileFailed": "ファイルの読み取りに失敗しました",
@@ -503,7 +510,10 @@
             "commandNotFoundCompress": "サーバーにコマンド '{command}' が見つからないため、圧縮操作を完了できません。",
             "commandNotFoundDecompress": "サーバーにコマンド '{command}' が見つからないため、解凍操作を完了できません。",
             "genericCommandNotFound": "サーバーにコマンド '{command}' が見つからないため、'{operation}' 操作を完了できません。",
-            "copyPathFailed": "パスのコピーに失敗しました"
+            "folderCompressionFailed": "選択したフォルダの圧縮に失敗しました",
+            "archiveCleanupFailed": "一時アーカイブ {name} の自動削除に失敗しました。手動で削除してください。",
+            "copyPathFailed": "パスのコピーに失敗しました",
+            "copyFilenameFailed": "ファイル名のコピーに失敗しました"
         },
         "headers": {
             "modified": "変更日",
@@ -521,7 +531,12 @@
             "moveSuccess": "移動に成功しました",
             "compressSuccess": "{name} を正常に圧縮しました",
             "decompressSuccess": "{name} を正常に解凍しました",
-            "pathCopied": "パスがクリップボードにコピーされました"
+            "folderArchiveQueued": "{count} 件のファイルを選択しました。圧縮アップロードを準備しています。",
+            "folderArchivePreparing": "{count} 件のファイルを圧縮中",
+            "folderArchiveReady": "圧縮が完了しました。{count} 件のファイルをアップロードできます。",
+            "folderArchiveUploading": "アーカイブをアップロードし、自動展開を準備しています",
+            "pathCopied": "パスがクリップボードにコピーされました",
+            "filenameCopied": "ファイル名がクリップボードにコピーされました"
         },
         "prompts": {
             "confirmDeleteFile": "ファイル \"{name}\" を削除しますか？この操作は元に戻せません。",
@@ -539,7 +554,9 @@
         "searchPlaceholder": "ファイルを検索...",
         "selectFileToEdit": "ファイルマネージャーから編集するファイルを選択してください。",
         "uploadStatus": {
+            "compressing": "圧縮中",
             "cancelled": "キャンセルされました",
+            "decompressing": "展開中",
             "pending": "待機中",
             "uploading": "アップロード中"
         },

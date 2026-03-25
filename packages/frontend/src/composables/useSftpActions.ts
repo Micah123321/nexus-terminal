@@ -40,6 +40,8 @@ export interface SftpManagerInstance {
    moveItems: (sourcePaths: string[], destinationDir: string) => void;
    compressItems: (items: FileListItem[], format: 'zip' | 'targz' | 'tarbz2') => Promise<void>; // Assume async
    decompressItem: (item: FileListItem) => Promise<void>; // Assume async
+   decompressPath: (archivePath: string, displayName?: string) => Promise<void>;
+   unlinkPath: (targetPath: string) => Promise<void>;
    joinPath: (base: string, name: string) => string;
    setInitialLoadDone: (value: boolean) => void;
 
@@ -54,6 +56,22 @@ const generateRequestId = (): string => `req-${Date.now()}-${Math.random().toStr
 const joinPath = (base: string, name: string): string => {
     if (base === '/') return `/${name}`;
     return base.endsWith('/') ? `${base}${name}` : `${base}/${name}`;
+};
+
+const dirname = (targetPath: string): string => {
+    const normalized = targetPath.replace(/\/+$/, '') || '/';
+    if (normalized === '/') {
+        return '/';
+    }
+
+    const lastSlashIndex = normalized.lastIndexOf('/');
+    return lastSlashIndex <= 0 ? '/' : normalized.substring(0, lastSlashIndex);
+};
+
+const basename = (targetPath: string): string => {
+    const normalized = targetPath.replace(/\/+$/, '');
+    const lastSlashIndex = normalized.lastIndexOf('/');
+    return lastSlashIndex >= 0 ? normalized.substring(lastSlashIndex + 1) : normalized;
 };
 
 // Helper function
@@ -558,17 +576,18 @@ export function createSftpActionsManager(
        });
    };
 
-   const decompressItem = (item: FileListItem): Promise<void> => {
+   const decompressPath = (archivePath: string, displayName?: string): Promise<void> => {
        return new Promise((resolve, reject) => {
            if (!isSftpReady.value) {
                const errMsg = t('fileManager.errors.sftpNotReady');
                uiNotificationsStore.showError(errMsg);
-               console.warn(`[SFTP ${instanceSessionId}] 尝试解压项目 ${item.filename} 但 SFTP 未就绪。`);
+               console.warn(`[SFTP ${instanceSessionId}] 尝试解压项目 ${archivePath} 但 SFTP 未就绪。`);
                return reject(new Error(errMsg));
            }
-           const sourcePath = joinPath(currentPathRef.value, item.filename);
-           const destinationDir = currentPathRef.value; // 默认解压到当前目录
+           const sourcePath = archivePath;
+           const destinationDir = dirname(archivePath);
            const requestId = generateRequestId();
+           const successName = displayName || basename(archivePath);
 
            let unregisterSuccess: (() => void) | null = null;
            let unregisterError: (() => void) | null = null;
@@ -586,8 +605,8 @@ export function createSftpActionsManager(
                    clearTimeout(timeoutId);
                    unregisterSuccess?.();
                    unregisterError?.();
-                   uiNotificationsStore.showSuccess(t('fileManager.notifications.decompressSuccess', { name: item.filename })); // 使用 i18n
-                   loadDirectory(currentPathRef.value, true); // 强制刷新当前目录
+                   uiNotificationsStore.showSuccess(t('fileManager.notifications.decompressSuccess', { name: successName })); // 使用 i18n
+                   loadDirectory(destinationDir, true); // 强制刷新当前目录
                    resolve();
                }
            });
@@ -609,6 +628,57 @@ export function createSftpActionsManager(
                type: 'sftp:decompress',
                requestId: requestId,
                payload: { source: sourcePath, destination: destinationDir }
+           });
+       });
+   };
+
+   const decompressItem = (item: FileListItem): Promise<void> => {
+       const sourcePath = joinPath(currentPathRef.value, item.filename);
+       return decompressPath(sourcePath, item.filename);
+   };
+
+   const unlinkPath = (targetPath: string): Promise<void> => {
+       return new Promise((resolve, reject) => {
+           if (!isSftpReady.value) {
+               const errMsg = t('fileManager.errors.sftpNotReady');
+               uiNotificationsStore.showError(errMsg);
+               console.warn(`[SFTP ${instanceSessionId}] 尝试删除路径 ${targetPath} 但 SFTP 未就绪。`);
+               return reject(new Error(errMsg));
+           }
+
+           const requestId = generateRequestId();
+           let unregisterSuccess: (() => void) | null = null;
+           let unregisterError: (() => void) | null = null;
+
+           const timeoutId = setTimeout(() => {
+               unregisterSuccess?.();
+               unregisterError?.();
+               reject(new Error(t('fileManager.errors.deleteFailed')));
+           }, 20000);
+
+           unregisterSuccess = onMessage('sftp:unlink:success', (_payload: MessagePayload, message: WebSocketMessage) => {
+               if (message.requestId === requestId && message.path === targetPath) {
+                   clearTimeout(timeoutId);
+                   unregisterSuccess?.();
+                   unregisterError?.();
+                   resolve();
+               }
+           });
+
+           unregisterError = onMessage('sftp:unlink:error', (payload: MessagePayload, message: WebSocketMessage) => {
+               if (message.requestId === requestId && message.path === targetPath) {
+                   clearTimeout(timeoutId);
+                   unregisterSuccess?.();
+                   unregisterError?.();
+                   const errorMsg = (payload as string) || t('fileManager.errors.deleteFailed');
+                   reject(new Error(errorMsg));
+               }
+           });
+
+           sendMessage({
+               type: 'sftp:unlink',
+               requestId,
+               payload: { path: targetPath },
            });
        });
    };
@@ -1170,10 +1240,12 @@ export function createSftpActionsManager(
         changePermissions,
         readFile,
         writeFile,
-        copyItems, // +++ 暴露 copyItems +++
+       copyItems, // +++ 暴露 copyItems +++
        moveItems, // +++ 暴露 moveItems +++
        compressItems, // +++ 暴露 compressItems +++
        decompressItem, // +++ 暴露 decompressItem +++
+       decompressPath,
+       unlinkPath,
        joinPath, // 暴露辅助函数
        // clearSftpError, // 移除 clearSftpError
 

@@ -13,6 +13,7 @@ import { useFileManagerContextMenu, type ClipboardState, type CompressFormat } f
 import { useFileManagerSelection } from '../composables/file-manager/useFileManagerSelection';
 import { useFileManagerDragAndDrop } from '../composables/file-manager/useFileManagerDragAndDrop';
 import { useFileManagerKeyboardNavigation } from '../composables/file-manager/useFileManagerKeyboardNavigation';
+import { createFolderArchive } from '../composables/file-manager/useFolderArchiveUpload';
 import FileUploadPopup from './FileUploadPopup.vue';
 import FileManagerContextMenu from './FileManagerContextMenu.vue';
 import FileManagerActionModal from './FileManagerActionModal.vue';
@@ -102,6 +103,9 @@ const {
     uploads,
     startFileUpload,
     cancelUpload,
+    createUploadTask,
+    updateUploadTask,
+    cleanupUploadTask,
 } = useFileUploader(
     computed(() => props.sessionId),
     // 传递 manager 的 currentPath 和 fileList ref
@@ -131,6 +135,7 @@ const {
 
 // --- UI 状态 Refs (Remain mostly the same) ---
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const folderInputRef = ref<HTMLInputElement | null>(null);
 const sortKey = ref<keyof FileListItem | 'type' | 'size' | 'mtime'>('filename');
 const sortDirection = ref<'asc' | 'desc'>('asc');
 const isEditingPath = ref(false);
@@ -142,6 +147,7 @@ const pathInputRef = ref<HTMLInputElement | null>(null);
 const editablePath = ref('');
 const fileListContainerRef = ref<HTMLDivElement | null>(null); // 文件列表容器引用
 const dropOverlayRef = ref<HTMLDivElement | null>(null); // +++ 拖拽蒙版引用 +++
+const isFolderUploadBusy = ref(false);
 
 // +++ Favorite Paths Modal State +++
 const showFavoritePathsModal = ref(false);
@@ -869,6 +875,90 @@ const handlePaste = () => {
 
 // --- 文件上传触发器 (定义在此处，供 Composable 使用) ---
 const triggerFileUpload = () => { fileInputRef.value?.click(); };
+const triggerFolderUpload = () => {
+  if (isFolderUploadBusy.value) {
+    return;
+  }
+  folderInputRef.value?.click();
+};
+
+const getFolderUploadName = (files: File[]) => {
+  const firstRelativePath = files[0]?.webkitRelativePath || files[0]?.name || 'folder';
+  return firstRelativePath.split('/').filter(Boolean)[0] || 'folder';
+};
+
+const handleFolderSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const files = input.files ? Array.from(input.files) : [];
+  input.value = '';
+
+  if (files.length === 0) {
+    return;
+  }
+
+  if (!currentSftpManager.value || !props.wsDeps.isConnected.value) {
+    uiNotificationsStore.showError(t('fileManager.errors.sftpNotReady'));
+    return;
+  }
+
+  const folderName = getFolderUploadName(files);
+  const uploadId = createUploadTask(folderName, {
+    status: 'compressing',
+    mode: 'folder-archive',
+    detail: t('fileManager.notifications.folderArchiveQueued', { count: files.length }),
+  });
+
+  isFolderUploadBusy.value = true;
+
+  try {
+    const { archiveFile, entryCount } = await createFolderArchive(files, (progress) => {
+      updateUploadTask(uploadId, {
+        status: 'compressing',
+        progress,
+        detail: t('fileManager.notifications.folderArchivePreparing', { count: files.length }),
+      });
+    });
+
+    updateUploadTask(uploadId, {
+      progress: 100,
+      detail: t('fileManager.notifications.folderArchiveReady', { count: entryCount }),
+    });
+
+    startFileUpload(archiveFile, undefined, {
+      uploadId,
+      displayName: folderName,
+      mode: 'folder-archive',
+      detail: t('fileManager.notifications.folderArchiveUploading', { count: entryCount }),
+      afterUpload: async ({ remotePath }) => {
+        if (!currentSftpManager.value) {
+          throw new Error(t('fileManager.errors.sftpManagerNotFound'));
+        }
+
+        await currentSftpManager.value.decompressPath(remotePath, folderName);
+
+        try {
+          await currentSftpManager.value.unlinkPath(remotePath);
+        } catch (cleanupError: any) {
+          console.warn(`[FileManager ${props.sessionId}-${props.instanceId}] Failed to cleanup uploaded archive ${remotePath}:`, cleanupError);
+          uiNotificationsStore.showWarning(
+            t('fileManager.errors.archiveCleanupFailed', {
+              name: remotePath.split('/').pop() || remotePath,
+            }),
+          );
+        }
+      },
+    });
+  } catch (error: any) {
+    console.error(`[FileManager ${props.sessionId}-${props.instanceId}] Failed to archive folder before upload:`, error);
+    updateUploadTask(uploadId, {
+      status: 'error',
+      error: error?.message || t('fileManager.errors.folderCompressionFailed'),
+    });
+    cleanupUploadTask(uploadId, 5000);
+  } finally {
+    isFolderUploadBusy.value = false;
+  }
+};
 
 // --- 下载触发器 (定义在此处，供 Composable 使用) ---
 const triggerDownload = (items: FileListItem[]) => { // 修改：接受 FileListItem 数组
@@ -1038,6 +1128,90 @@ const handleCopyPath = async (item: FileListItem) => {
   }
 };
 
+const handleCopyFilename = async (item: FileListItem) => {
+  try {
+    await navigator.clipboard.writeText(item.filename);
+    uiNotificationsStore.showSuccess(t('fileManager.notifications.filenameCopied', 'Filename copied to clipboard'));
+  } catch (err) {
+    console.error(`[FileManager ${props.sessionId}-${props.instanceId}] Failed to copy filename: `, err);
+    uiNotificationsStore.showError(t('fileManager.errors.copyFilenameFailed', 'Failed to copy filename'));
+  }
+};
+
+const getTargetPathForItem = (item?: FileListItem | null): string | null => {
+  if (!currentSftpManager.value) {
+    return null;
+  }
+
+  const currentPath = currentSftpManager.value.currentPath.value;
+  if (!item || item.filename === '..') {
+    return currentPath;
+  }
+
+  if (item.attrs.isDirectory) {
+    return currentSftpManager.value.joinPath(currentPath, item.filename);
+  }
+
+  return currentPath;
+};
+
+const sendCdCommandToPath = (targetPath: string, sessionId?: string) => {
+  if (!props.wsDeps.isConnected.value) {
+    console.warn(`[FileManager ${props.sessionId}-${props.instanceId}] Cannot send CD command: not connected.`);
+    return;
+  }
+
+  const escapedPath = `"${targetPath}"`;
+  const command = `cd ${escapedPath}\n`;
+
+  try {
+    const targetSession = sessionId ? sessionStore.sessions.get(sessionId) : sessionStore.activeSession;
+    if (!targetSession?.terminalManager) {
+      console.error(`[FileManager ${props.sessionId}-${props.instanceId}] Failed to send command: Terminal manager not found.`);
+      return;
+    }
+
+    targetSession.terminalManager.sendData(command);
+  } catch (error) {
+    console.error(`[FileManager ${props.sessionId}-${props.instanceId}] Failed to send command to terminal:`, error);
+  }
+};
+
+const handleSendItemPathToTerminal = (item: FileListItem) => {
+  const targetPath = getTargetPathForItem(item);
+  if (!targetPath) {
+    return;
+  }
+
+  sendCdCommandToPath(targetPath);
+};
+
+const handleOpenTerminalAtItemPath = (item: FileListItem) => {
+  const targetPath = getTargetPathForItem(item);
+  const connectionId = Number(props.dbConnectionId);
+  if (!targetPath || Number.isNaN(connectionId)) {
+    return;
+  }
+
+  const previousActiveSessionId = sessionStore.activeSessionId;
+  sessionStore.handleOpenNewSession(connectionId);
+  const newSessionId = sessionStore.activeSessionId;
+
+  if (!newSessionId || newSessionId === previousActiveSessionId) {
+    return;
+  }
+
+  const newSession = sessionStore.sessions.get(newSessionId);
+  if (!newSession?.wsManager) {
+    return;
+  }
+
+  const unregister = newSession.wsManager.onMessage('ssh:connected', () => {
+    sendCdCommandToPath(targetPath, newSessionId);
+    unregister?.();
+  });
+};
+
 // --- 上下文菜单逻辑 (使用 Composable, 需要 Selection 和 Action Handlers) ---
 const {
   contextMenuVisible,
@@ -1065,6 +1239,7 @@ const {
       }
   },
   onUpload: triggerFileUpload,
+  onUploadFolder: triggerFolderUpload,
   onDownload: triggerDownload,
   onDelete: handleDeleteSelectedClick,
   onRename: handleRenameContextMenuClick,
@@ -1079,6 +1254,9 @@ const {
   onCompressRequest: handleCompress,
   onDecompressRequest: handleDecompress,
   onCopyPath: handleCopyPath, // +++ 传递复制路径回调 +++
+  onCopyFilename: handleCopyFilename,
+  onSendCdToTerminal: handleSendItemPathToTerminal,
+  onOpenTerminalAtPath: handleOpenTerminalAtItemPath,
 });
 
 // --- 目录加载与导航 ---
@@ -1970,10 +2148,11 @@ watch(
                 class="left-0 right-0 top-full mt-1"
               />
             </div>
-        </div> <!-- End Wrapper -->
+       </div> <!-- End Wrapper -->
        <!-- Main Actions Bar -->
        <div class="flex items-center gap-2 flex-shrink-0">
             <input type="file" ref="fileInputRef" @change="handleFileSelected" multiple class="hidden" />
+            <input type="file" ref="folderInputRef" @change="handleFolderSelected" webkitdirectory directory multiple class="hidden" />
             <!-- 打开编辑器按钮 -->
             <button
               v-if="showPopupFileEditorBoolean"
@@ -1995,7 +2174,17 @@ watch(
               :class="{ 'px-1.5': props.isMobile }"
             >
               <i class="fas fa-upload text-sm"></i>
-              <span v-if="!props.isMobile">{{ t('fileManager.actions.upload') }}</span>
+              <span v-if="!props.isMobile">{{ t('fileManager.actions.uploadFile') }}</span>
+            </button>
+            <button
+              @click="triggerFolderUpload"
+              :disabled="!currentSftpManager || !props.wsDeps.isConnected.value || isFolderUploadBusy"
+              :title="t('fileManager.actions.uploadFolder')"
+              class="flex items-center gap-1 px-2.5 py-1 bg-background border border-border rounded text-foreground text-xs transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:enabled:bg-header hover:enabled:border-primary hover:enabled:text-primary"
+              :class="{ 'px-1.5': props.isMobile }"
+            >
+              <i :class="isFolderUploadBusy ? 'fas fa-spinner fa-spin text-sm' : 'fas fa-folder-open text-sm'"></i>
+              <span v-if="!props.isMobile">{{ t('fileManager.actions.uploadFolder') }}</span>
             </button>
             <button
               @click="handleNewFolderContextMenuClick"

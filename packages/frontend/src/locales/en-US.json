@@ -448,6 +448,7 @@
       "refresh": "Refresh",
       "parentDirectory": "Parent Directory",
       "uploadFile": "Upload File",
+      "uploadFolder": "Upload Folder",
       "upload": "Upload",
       "newFolder": "New Folder",
       "rename": "Rename",
@@ -463,11 +464,16 @@
       "closeTab": "Close Tab",
       "closeEditor": "Close Editor",
       "cdToTerminal": "Change terminal directory to current path",
+      "cdToTerminalMenu": "Run cd in terminal",
       "copy": "Copy",
+      "copyFilename": "Copy Filename",
       "cut": "Cut",
       "paste": "Paste",
       "openEditor": "Open Editor",
-      "copyPath": "Copy Path"
+      "copyPath": "Copy Absolute Path",
+      "terminalMenu": "Terminal",
+      "newTerminalAtPath": "Open New Terminal Here",
+      "uploadMenu": "Upload"
     },
 "contextMenu": {
       "compress": "Compress",
@@ -485,7 +491,9 @@
       "modified": "Modified"
     },
     "uploadStatus": {
+      "compressing": "Compressing",
       "cancelled": "Cancelled",
+      "decompressing": "Extracting",
       "pending": "Pending",
       "uploading": "Uploading"
     },
@@ -506,6 +514,7 @@
       "loadDirectoryFailed": "Failed to load directory",
       "copyFailed": "Copy failed",
       "moveFailed": "Move failed",
+      "uploadFailed": "Upload failed",
       "sftpNotReady": "SFTP session not ready",
       "sftpManagerNotFound": "SFTP manager not found",
       "noActiveSession": "No active session found",
@@ -522,7 +531,10 @@
       "commandNotFoundCompress": "Command '{command}' not found on server, cannot complete compression.",
       "commandNotFoundDecompress": "Command '{command}' not found on server, cannot complete decompression.",
       "genericCommandNotFound": "Command '{command}' not found on server, cannot complete '{operation}' operation.",
-      "copyPathFailed": "Failed to copy path"
+      "folderCompressionFailed": "Failed to compress the selected folder",
+      "archiveCleanupFailed": "Failed to remove temporary archive {name} automatically. Please delete it manually.",
+      "copyPathFailed": "Failed to copy path",
+      "copyFilenameFailed": "Failed to copy filename"
   },
   "notifications": {
     "copySuccess": "Copy successful",
@@ -530,7 +542,12 @@
     "cdCommandSent": "CD command sent to terminal",
     "compressSuccess": "Compressed {name} successfully",
     "decompressSuccess": "Decompressed {name} successfully",
-    "pathCopied": "Path copied to clipboard"
+    "folderArchiveQueued": "{count} files selected. Preparing archive upload.",
+    "folderArchivePreparing": "Compressing {count} files",
+    "folderArchiveReady": "Archive ready. {count} files prepared for upload.",
+    "folderArchiveUploading": "Uploading archive and preparing automatic extraction",
+    "pathCopied": "Path copied to clipboard",
+    "filenameCopied": "Filename copied to clipboard"
   },
   "warnings": {
         "moveSameDirectory": "Cannot cut and paste in the same directory."

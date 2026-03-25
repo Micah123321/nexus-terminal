@@ -3,9 +3,14 @@ import axios from 'axios';
 import pkg from '../../../package.json'; // 路径相对于当前文件
 import { useI18n } from 'vue-i18n';
 
+const normalizeVersionLabel = (version: string) => {
+  const cleanVersion = version.startsWith('v') ? version.slice(1) : version;
+  return cleanVersion.replace(/^(\d+\.\d+)\.0$/, '$1');
+};
+
 export function useAboutSection() {
   const { t } = useI18n();
-  const appVersion = ref(pkg.version);
+  const appVersion = ref(normalizeVersionLabel(pkg.version));
 
   // --- Version Check State ---
   const latestVersion = ref<string | null>(null);
@@ -18,12 +23,8 @@ export function useAboutSection() {
     // appVersion.value 通常不包含 'v'
     if (!latestVersion.value) return false;
 
-    const cleanLatestVersion = latestVersion.value.startsWith('v')
-      ? latestVersion.value.substring(1)
-      : latestVersion.value;
-    const cleanAppVersion = appVersion.value.startsWith('v')
-      ? appVersion.value.substring(1)
-      : appVersion.value;
+    const cleanLatestVersion = normalizeVersionLabel(latestVersion.value);
+    const cleanAppVersion = appVersion.value;
 
     // 进行版本比较，更健壮的比较可能需要拆分版本号进行数字比较
     // 此处简单比较字符串，对于 "1.0.10" > "1.0.9" 是有效的
