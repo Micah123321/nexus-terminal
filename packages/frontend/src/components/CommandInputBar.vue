@@ -68,6 +68,33 @@ const currentSessionCommandInput = computed({
   }
 });
 
+const maxCommandInputRows = 6;
+
+const syncCommandInputHeight = () => {
+  const textarea = commandInputRef.value;
+  if (!textarea) {
+    return;
+  }
+
+  textarea.style.height = 'auto';
+
+  const computedStyle = window.getComputedStyle(textarea);
+  const lineHeight = Number.parseFloat(computedStyle.lineHeight) || 20;
+  const verticalPadding = Number.parseFloat(computedStyle.paddingTop) + Number.parseFloat(computedStyle.paddingBottom);
+  const borderWidth = Number.parseFloat(computedStyle.borderTopWidth) + Number.parseFloat(computedStyle.borderBottomWidth);
+  const maxHeight = lineHeight * maxCommandInputRows + verticalPadding + borderWidth;
+  const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+
+  textarea.style.height = `${nextHeight}px`;
+  textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+};
+
+const scheduleCommandInputHeightSync = () => {
+  void nextTick(() => {
+    syncCommandInputHeight();
+  });
+};
+
 const sendCommand = () => {
   const command = currentSessionCommandInput.value; // 使用计算属性获取值
   console.log(`[CommandInputBar] Sending command: ${command || '<Enter>'} `);
@@ -125,17 +152,24 @@ watch(currentSessionCommandInput, (newValue) => { // 监听计算属性
     commandHistoryStore.setSearchTerm(newValue);
   }
   // If target is 'none', do nothing
+  scheduleCommandInputHeightSync();
 });
 
 // 可以在这里添加一个 ref 用于聚焦搜索框
 const searchInputRef = ref<HTMLInputElement | null>(null);
-const commandInputRef = ref<HTMLInputElement | null>(null); // Ref for command input
+const commandInputRef = ref<HTMLTextAreaElement | null>(null); // Ref for command input
+
+watch(activeSessionId, () => {
+  scheduleCommandInputHeightSync();
+});
 
 // Removed debug computed property
 
 const handleCommandInputKeydown = (event: KeyboardEvent) => {
-  // --- 移动到外部：优先处理 Enter 键执行选中项 ---
-  if (!event.altKey && event.key === 'Enter') {
+  const isSendShortcut = event.key === 'Enter' && event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey;
+
+  // --- 移动到外部：优先处理发送快捷键执行选中项 ---
+  if (isSendShortcut) {
     const target = commandInputSyncTarget.value;
     let selectedCommand: string | undefined;
     let resetSelection: (() => void) | undefined;
@@ -156,7 +190,7 @@ const handleCommandInputKeydown = (event: KeyboardEvent) => {
 
     if (selectedCommand !== undefined) {
       event.preventDefault();
-      console.log(`[CommandInputBar] Enter detected with selection. Sending selected command: ${selectedCommand}`);
+      console.log(`[CommandInputBar] Send shortcut detected with selection. Sending selected command: ${selectedCommand}`);
       emitWorkspaceEvent('terminal:sendCommand', { command: selectedCommand }); // 发送选中命令
       if (activeSessionId.value) {
         updateSessionCommandInput(activeSessionId.value, ''); // 清空输入框
@@ -164,9 +198,9 @@ const handleCommandInputKeydown = (event: KeyboardEvent) => {
       resetSelection?.(); // 重置列表选中状态
       return; // 阻止后续的 Enter 处理
     }
-    // 如果没有选中项，则继续执行下面的默认 Enter 逻辑
+    // 如果没有选中项，则继续执行下面的默认发送逻辑
   }
-  // --- 结束：优先处理 Enter 键执行选中项 ---
+  // --- 结束：优先处理发送快捷键执行选中项 ---
 
   if (event.ctrlKey && event.key === 'f') {
     event.preventDefault(); // 阻止浏览器默认的查找行为
@@ -197,8 +231,8 @@ const handleCommandInputKeydown = (event: KeyboardEvent) => {
     event.preventDefault();
     console.log('[CommandInputBar] Ctrl+C detected with empty input. Sending SIGINT.');
     emitWorkspaceEvent('terminal:sendCommand', { command: '\x03' }); // Send ETX character (Ctrl+C)
-  } else if (!event.altKey && event.key === 'Enter') {
-     // Handle regular Enter key press - send current input (empty or not)
+  } else if (isSendShortcut) {
+     // Handle Ctrl+Shift+Enter - send current input (empty or not)
      event.preventDefault(); // Prevent default if needed, e.g., form submission
      sendCommand(); // Call the existing sendCommand function
  } else {
@@ -271,6 +305,7 @@ let unregisterTerminalSearchFocus: (() => void) | null = null;
 onMounted(() => {
   unregisterCommandInputFocus = focusSwitcherStore.registerFocusAction('commandInput', focusCommandInput);
   unregisterTerminalSearchFocus = focusSwitcherStore.registerFocusAction('terminalSearch', focusSearchInput);
+  scheduleCommandInputHeightSync();
 });
 
 onBeforeUnmount(() => {
@@ -360,17 +395,18 @@ const handleQuickCommandExecute = (command: string) => {
         <i class="fas fa-keyboard text-base"></i> <!-- Removed text-primary -->
       </button>
       <!-- Command Input (Hide on mobile when searching) -->
-      <input
+      <textarea
         v-if="!props.isMobile || !isSearching"
-        type="text"
         v-model="currentSessionCommandInput"
+        rows="1"
         :placeholder="t('commandInputBar.placeholder')"
-        class="flex-grow min-w-0 px-4 py-1.5 border border-border/50 rounded-lg bg-input text-foreground text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 ease-in-out"
+        class="flex-grow min-w-0 px-4 py-1.5 border border-border/50 rounded-lg bg-input text-foreground text-sm leading-5 shadow-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-300 ease-in-out"
         :class="{
           'basis-3/4': !props.isMobile && isSearching,      // Desktop searching: 3/4 width
           'basis-full': !props.isMobile && !isSearching,   // Desktop non-searching: full width
           'w-0': props.isMobile  // Mobile non-searching: adjust width to fit
         }"
+        style="min-height: 38px;"
         ref="commandInputRef"
         data-focus-id="commandInput"
         @keydown="handleCommandInputKeydown"

@@ -73,7 +73,7 @@
         "findNext": "次を検索",
         "findPrevious": "前を検索",
         "openSearch": "ターミナル検索を開く",
-        "placeholder": "ここにコマンドを入力して Enter キーを押すと、ターミナルに送信されます...",
+        "placeholder": "ここにコマンドを入力してください。Enter で改行、Ctrl+Shift+Enter でターミナルに送信します...",
         "searchPlaceholder": "ターミナル内で検索...",
         "clearTerminal": "ターミナルをクリア"
     },

@@ -18,6 +18,8 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 新增
+- **[frontend]**: 将底部命令输入框升级为支持多行草稿与自动增高，并把发送快捷键改为 `Ctrl+Shift+Enter` — by yinjianm
+  - 方案: [202603252340_command-input-multiline-shortcut](archive/2026-03/202603252340_command-input-multiline-shortcut/)
 - **[frontend]**: 将服务器状态中的内存与磁盘区域升级为卡片化监控视图，补齐环形内存占比、磁盘设备信息、读写速率与挂载表格展示 — by yinjianm
   - 方案: [202603252200_server-status-memory-disk-cards](archive/2026-03/202603252200_server-status-memory-disk-cards/)
 - **[backend]**: 扩展 `StatusMonitorService` 的内存/磁盘采集字段，新增缓存、空闲、挂载点、文件系统类型、磁盘设备与磁盘 I/O 速率 — by yinjianm

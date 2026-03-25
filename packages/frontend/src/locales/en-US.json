@@ -1261,7 +1261,7 @@
     }
   },
   "commandInputBar": {
-    "placeholder": "Enter command and press Enter to send...",
+    "placeholder": "Enter command here; press Enter for a new line, Ctrl+Shift+Enter to send...",
     "searchPlaceholder": "Search in terminal...",
     "openSearch": "Open terminal search",
     "closeSearch": "Close terminal search",
