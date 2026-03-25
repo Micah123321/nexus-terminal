@@ -5,8 +5,8 @@
 类型: 缺陷修复
 方案类型: implementation
 优先级: P1
-状态: 进行中
-状态说明: 已确认 ANSI 彩色字符需绕过描边/阴影，同时将终端文字效果默认开关改为开启
+状态: 已完成
+状态说明: 已完成显式前景色字符绕过描边/阴影修复，并完成前后端构建验证
 创建: 2026-03-25
 ```
 
@@ -58,3 +58,9 @@
 | xterm 默认前景与 ANSI 颜色识别条件不完整 | 中 | 依据 xterm DOM renderer 实际 class/style 规则设计选择器，避免整行样式覆盖 |
 | 移除行级样式后默认文本效果范围缩小 | 低 | 仅保留到字符 span 级别，确保默认文本仍有描边/阴影 |
 | 默认开关改为开启影响旧用户认知 | 低 | 仅修改默认值与前端 fallback，不覆盖数据库中已有显式设置 |
+
+### 实施结果
+- `Terminal.vue` 新增显式前景色字符标记逻辑，利用 xterm DOM renderer 生成的 `xterm-fg-*` class 或内联 `style.color` 判断当前字符是否使用了显式前景色。
+- 终端文字描边和阴影样式不再对整行容器统一施加，而是仅作用于默认前景文字；显式前景色字符会自动绕过这些效果，避免 ANSI 彩色文本被“压平”。
+- `appearance.store.ts` 的前端回退值和 `appearance.repository.ts` 的后端默认值已将终端文字描边/阴影开关默认改为开启。
+- `npm run build --workspace @nexus-terminal/frontend` 与 `npm run build --workspace @nexus-terminal/backend` 均通过。

@@ -12,7 +12,13 @@
   - 方案: [202603250532_quickcommands-theme-alignment](archive/2026-03/202603250532_quickcommands-theme-alignment/)
 - **[frontend]**: 修复终端标签切换后的视口恢复逻辑，贴底终端重新激活后自动贴底，上翻终端保留历史位置 — by yinjianm
   - 方案: [202603250547_terminal-tab-scroll-restore](archive/2026-03/202603250547_terminal-tab-scroll-restore/)
+- **[frontend]**: 修复终端文字效果对 ANSI 彩色输出的覆盖问题，仅让默认前景文字保留描边/阴影效果 — by yinjianm
+  - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 新增
 - **[frontend]**: 将“黑暗模式”预设与终端默认主题统一调整为黑绿夜间风格 — by yinjianm
   - 方案: [202603250603_dark-green-night-theme](archive/2026-03/202603250603_dark-green-night-theme/)
+- **[backend]**: 将终端文字描边与阴影开关的外观默认值改为开启，与前端回退值保持一致 — by yinjianm
+  - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
+- **[frontend]**: 将连接管理页升级为左侧标签树、顶部搜索工具条和右侧结果列表的双栏管理台 — by yinjianm
+  - 方案: [202603250636_connections-view-tree-search-redesign](archive/2026-03/202603250636_connections-view-tree-search-redesign/)
