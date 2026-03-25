@@ -8,6 +8,8 @@
 - 2026-03-25：继续微调 `/workspace` Workbench，新增默认“快捷指令”标签、调整三栏宽度到更接近 xterminal 参考图，并修复终端区域鼠标悬停时指针异常消失的问题。
 
 ### 修复
+- **[workspace-root]**: 重新核对工作区状态监控与终端标签剩余改动，确认当前前后端构建通过，并修正知识库归档索引与活跃方案状态 — by yinjianm
+  - 方案: [202603252256_workspace-monitor-terminal-polish](archive/2026-03/202603252256_workspace-monitor-terminal-polish/)
 - **[frontend]**: 统一 `QuickCommandsView.vue` 的按钮主题适配，移除残留硬编码 hover 色值并切回主题变量体系 — by yinjianm
   - 方案: [202603250532_quickcommands-theme-alignment](archive/2026-03/202603250532_quickcommands-theme-alignment/)
 - **[frontend]**: 修复终端标签切换后的视口恢复逻辑，贴底终端重新激活后自动贴底，上翻终端保留历史位置 — by yinjianm
