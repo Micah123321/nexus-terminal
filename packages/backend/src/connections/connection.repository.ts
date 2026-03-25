@@ -12,6 +12,7 @@ interface ConnectionBase {
     port: number;
     username: string;
     auth_method: 'password' | 'key';
+    login_credential_id?: number | null;
     proxy_id: number | null;
     proxy_type?: 'proxy' | 'jump' | null; // 新增连接本身的 proxy_type
     created_at: number;
@@ -50,8 +51,16 @@ notes?: string | null;
 
 interface FullConnectionDbRow extends Omit<FullConnectionData, 'jump_chain' | 'tag_ids'> { // Omit service layer type, and tag_ids (not directly on connections table)
     ssh_key_id?: number | null; 
+    login_credential_id?: number | null;
     jump_chain: string | null; // Stored as JSON string in DB
     proxy_type?: 'proxy' | 'jump' | null; // 连接本身的 proxy_type, from c.proxy_type
+    login_credential_type?: 'SSH' | 'RDP' | 'VNC' | null;
+    login_credential_username?: string | null;
+    login_credential_auth_method?: 'password' | 'key' | null;
+    login_credential_encrypted_password?: string | null;
+    login_credential_encrypted_private_key?: string | null;
+    login_credential_encrypted_passphrase?: string | null;
+    login_credential_ssh_key_id?: number | null;
     proxy_db_id: number | null;
     proxy_name: string | null;
     actual_proxy_server_type: string | null; // p.type AS actual_proxy_server_type
@@ -70,10 +79,14 @@ interface FullConnectionDbRow extends Omit<FullConnectionData, 'jump_chain' | 't
 export const findAllConnectionsWithTags = async (): Promise<ConnectionWithTags[]> => {
     const sql = `
         SELECT
-            c.id, c.name, c.type, c.host, c.port, c.username, c.auth_method, c.proxy_id, c.proxy_type, c.ssh_key_id, c.notes, c.jump_chain, -- +++ Select ssh_key_id, notes, jump_chain AND proxy_type +++
+            c.id, c.name, c.type, c.host, c.port,
+            COALESCE(lc.username, c.username) as username,
+            COALESCE(lc.auth_method, c.auth_method) as auth_method,
+            c.login_credential_id, c.proxy_id, c.proxy_type, c.ssh_key_id, c.notes, c.jump_chain,
             c.created_at, c.updated_at, c.last_connected_at,
             GROUP_CONCAT(ct.tag_id) as tag_ids_str
          FROM connections c
+         LEFT JOIN login_credentials lc ON c.login_credential_id = lc.id
          LEFT JOIN connection_tags ct ON c.id = ct.connection_id
          GROUP BY c.id
          ORDER BY c.name ASC`;
@@ -100,10 +113,14 @@ export const findAllConnectionsWithTags = async (): Promise<ConnectionWithTags[]
 export const findConnectionByIdWithTags = async (id: number): Promise<ConnectionWithTags | null> => {
     const sql = `
         SELECT
-            c.id, c.name, c.type, c.host, c.port, c.username, c.auth_method, c.proxy_id, c.proxy_type, c.ssh_key_id, c.notes, c.jump_chain, -- +++ Select ssh_key_id, notes, jump_chain AND proxy_type +++
+            c.id, c.name, c.type, c.host, c.port,
+            COALESCE(lc.username, c.username) as username,
+            COALESCE(lc.auth_method, c.auth_method) as auth_method,
+            c.login_credential_id, c.proxy_id, c.proxy_type, c.ssh_key_id, c.notes, c.jump_chain,
             c.created_at, c.updated_at, c.last_connected_at,
             GROUP_CONCAT(ct.tag_id) as tag_ids_str
          FROM connections c
+         LEFT JOIN login_credentials lc ON c.login_credential_id = lc.id
          LEFT JOIN connection_tags ct ON c.id = ct.connection_id
          WHERE c.id = ?
          GROUP BY c.id`;
@@ -133,12 +150,20 @@ export const findFullConnectionById = async (id: number): Promise<FullConnection
      const sql = `
          SELECT
              c.*, -- 选择 connections 表所有列 (包括 c.proxy_type)
+             lc.type as login_credential_type,
+             lc.username as login_credential_username,
+             lc.auth_method as login_credential_auth_method,
+             lc.encrypted_password as login_credential_encrypted_password,
+             lc.encrypted_private_key as login_credential_encrypted_private_key,
+             lc.encrypted_passphrase as login_credential_encrypted_passphrase,
+             lc.ssh_key_id as login_credential_ssh_key_id,
              p.id as proxy_db_id, p.name as proxy_name, p.type as actual_proxy_server_type, -- Renamed p.type to avoid conflict
              p.host as proxy_host, p.port as proxy_port, p.username as proxy_username,
              p.encrypted_password as proxy_encrypted_password,
              p.encrypted_private_key as proxy_encrypted_private_key,
              p.encrypted_passphrase as proxy_encrypted_passphrase
           FROM connections c
+          LEFT JOIN login_credentials lc ON c.login_credential_id = lc.id
           LEFT JOIN proxies p ON c.proxy_id = p.id
           WHERE c.id = ?`;
      try {
@@ -155,7 +180,7 @@ export const findFullConnectionById = async (id: number): Promise<FullConnection
   * 根据名称查找连接 (用于检查名称是否重复)
   */
  export const findConnectionByName = async (name: string): Promise<ConnectionBase | null> => {
-     const sql = `SELECT id, name, type, host, port, username, auth_method, proxy_id, proxy_type, ssh_key_id, notes, jump_chain, created_at, updated_at, last_connected_at FROM connections WHERE name = ?`; // Added jump_chain and proxy_type
+     const sql = `SELECT id, name, type, host, port, username, auth_method, login_credential_id, proxy_id, proxy_type, ssh_key_id, notes, jump_chain, created_at, updated_at, last_connected_at FROM connections WHERE name = ?`; // Added jump_chain and proxy_type
      try {
          const db = await getDbInstance();
          // Cast to ConnectionWithTagsRow to read jump_chain as string, then parse. It will now also have proxy_type
@@ -190,8 +215,8 @@ export const createConnection = async (data: Omit<FullConnectionData, 'id' | 'cr
     console.log('[Repository:createConnection] Received data:', JSON.stringify(data, null, 2));
     const now = Math.floor(Date.now() / 1000);
     const sql = `
-        INSERT INTO connections (name, type, host, port, username, auth_method, encrypted_password, encrypted_private_key, encrypted_passphrase, proxy_id, proxy_type, ssh_key_id, notes, jump_chain, created_at, updated_at) -- +++ Add ssh_key_id, notes, jump_chain AND proxy_type columns +++
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`; // +++ Add placeholders for ssh_key_id, notes, jump_chain AND proxy_type +++
+        INSERT INTO connections (name, type, host, port, username, auth_method, encrypted_password, encrypted_private_key, encrypted_passphrase, proxy_id, proxy_type, ssh_key_id, login_credential_id, notes, jump_chain, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
     
     const jumpChainStringified = (data.jump_chain && data.jump_chain.length > 0) ? JSON.stringify(data.jump_chain) : null;
     console.log(`[Repository:createConnection] jump_chain input: ${JSON.stringify(data.jump_chain)}, stringified to: ${jumpChainStringified}`);
@@ -204,6 +229,7 @@ export const createConnection = async (data: Omit<FullConnectionData, 'id' | 'cr
         data.proxy_id ?? null,
         data.proxy_type ?? null, // Add proxy_type parameter
         data.ssh_key_id ?? null, // +++ Add ssh_key_id parameter +++
+        data.login_credential_id ?? null,
         data.notes ?? null, // Add notes parameter
         jumpChainStringified, // Use the stringified jump_chain
         now, now
@@ -400,7 +426,7 @@ export const bulkInsertConnections = async (
     connections: Array<Omit<FullConnectionData, 'id' | 'created_at' | 'updated_at' | 'last_connected_at'> & { tag_ids?: number[] }>
 ): Promise<{ connectionId: number, originalData: any }[]> => {
 
-    const insertConnSql = `INSERT INTO connections (name, type, host, port, username, auth_method, encrypted_password, encrypted_private_key, encrypted_passphrase, proxy_id, proxy_type, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`; // Add type, proxy_type and notes columns and placeholders
+    const insertConnSql = `INSERT INTO connections (name, type, host, port, username, auth_method, encrypted_password, encrypted_private_key, encrypted_passphrase, proxy_id, proxy_type, login_credential_id, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`; // Add type, proxy_type and notes columns and placeholders
     const results: { connectionId: number, originalData: any }[] = [];
     const now = Math.floor(Date.now() / 1000);
 
@@ -412,6 +438,7 @@ export const bulkInsertConnections = async (
             connData.encrypted_passphrase || null,
             connData.proxy_id || null,
             connData.proxy_type || null, // Add proxy_type parameter
+            connData.login_credential_id || null,
 connData.notes || null, // Add notes parameter
             now, now
         ];

@@ -6,6 +6,7 @@ import { useConnectionsStore, ConnectionInfo } from '../stores/connections.store
 import { useProxiesStore } from '../stores/proxies.store';
 import { useTagsStore } from '../stores/tags.store';
 import { useSshKeysStore } from '../stores/sshKeys.store';
+import { useLoginCredentialsStore } from '../stores/loginCredentials.store';
 import { useUiNotificationsStore } from '../stores/uiNotifications.store';
 import { useConfirmDialog } from './useConfirmDialog';
 import { useAlertDialog } from './useAlertDialog';
@@ -33,12 +34,14 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
   const proxiesStore = useProxiesStore();
   const tagsStore = useTagsStore();
   const sshKeysStore = useSshKeysStore();
+  const loginCredentialsStore = useLoginCredentialsStore();
   const uiNotificationsStore = useUiNotificationsStore();
 
   const { isLoading: isConnLoading, error: connStoreError, connections } = storeToRefs(connectionsStore);
   const { proxies, isLoading: isProxyLoading, error: proxyStoreError } = storeToRefs(proxiesStore);
   const { tags, isLoading: isTagLoading, error: tagStoreError } = storeToRefs(tagsStore);
   const { sshKeys, isLoading: isSshKeyLoading, error: sshKeyStoreError } = storeToRefs(sshKeysStore);
+  const { loginCredentials, isLoading: isLoginCredentialLoading, error: loginCredentialStoreError } = storeToRefs(loginCredentialsStore);
 
   // 表单数据模型
   const initialFormData = {
@@ -46,6 +49,8 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
     name: '',
     host: '',
     port: 22,
+    credential_source: 'direct' as 'direct' | 'saved',
+    login_credential_id: null as number | null,
     username: '',
     auth_method: 'password' as 'password' | 'key',
     password: '',
@@ -65,8 +70,8 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
   const advancedConnectionMode = ref<'proxy' | 'jump'>('proxy');
 
   // 合并所有 store 的加载和错误状态
-  const isLoading = computed(() => isConnLoading.value || isProxyLoading.value || isTagLoading.value || isSshKeyLoading.value); // +++ Include SSH Key loading +++
-  const storeError = computed(() => connStoreError.value || proxyStoreError.value || tagStoreError.value || sshKeyStoreError.value); // +++ Include SSH Key error +++
+  const isLoading = computed(() => isConnLoading.value || isProxyLoading.value || isTagLoading.value || isSshKeyLoading.value || isLoginCredentialLoading.value);
+  const storeError = computed(() => connStoreError.value || proxyStoreError.value || tagStoreError.value || sshKeyStoreError.value || loginCredentialStoreError.value);
 
   // 测试连接状态
   const testStatus = ref<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -108,6 +113,8 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
           formData.name = newVal.name;
           formData.host = newVal.host;
           formData.port = newVal.port;
+          formData.credential_source = newVal.login_credential_id ? 'saved' : 'direct';
+          formData.login_credential_id = newVal.login_credential_id ?? null;
           formData.username = newVal.username;
           formData.auth_method = newVal.auth_method;
           formData.proxy_id = newVal.proxy_id ?? null;
@@ -145,6 +152,8 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
           }
      } else {
          Object.assign(formData, initialFormData);
+         formData.credential_source = 'direct';
+         formData.login_credential_id = null;
          formData.tag_ids = [];
          formData.selected_ssh_key_id = null;
          formData.notes = '';
@@ -161,6 +170,7 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
       proxiesStore.fetchProxies();
       tagsStore.fetchTags();
       sshKeysStore.fetchSshKeys();
+      loginCredentialsStore.fetchLoginCredentials();
   });
 
   // 监听连接类型变化，动态调整默认端口
@@ -176,6 +186,30 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
           formData.auth_method = 'password';
           formData.selected_ssh_key_id = null;
       }
+
+      if (formData.login_credential_id) {
+          const selectedCredential = loginCredentials.value.find(credential => credential.id === formData.login_credential_id);
+          if (!selectedCredential || selectedCredential.type !== newType) {
+              formData.login_credential_id = null;
+          }
+      }
+  });
+
+  watch(() => formData.login_credential_id, (newCredentialId) => {
+    if (!newCredentialId) {
+      return;
+    }
+
+    const selectedCredential = loginCredentials.value.find((credential) => credential.id === newCredentialId);
+    if (!selectedCredential) {
+      return;
+    }
+
+    formData.username = selectedCredential.username;
+    formData.auth_method = selectedCredential.auth_method;
+    if (selectedCredential.auth_method === 'key') {
+      formData.selected_ssh_key_id = selectedCredential.ssh_key_id ?? null;
+    }
   });
 
   

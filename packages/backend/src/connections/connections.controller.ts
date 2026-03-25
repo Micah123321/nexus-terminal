@@ -4,6 +4,7 @@ import * as SshService from '../services/ssh.service';
 import * as GuacamoleService from '../services/guacamole.service'; 
 import * as ImportExportService from '../services/import-export.service';
 import * as ConnectionRepository from './connection.repository';
+import * as LoginCredentialService from '../login-credentials/login-credential.service';
 
 
 
@@ -144,42 +145,65 @@ export const testConnection = async (req: Request, res: Response): Promise<void>
  */
 export const testUnsavedConnection = async (req: Request, res: Response): Promise<void> => {
     try {
-        // 从请求体中提取连接信息 (添加 ssh_key_id)
-        const { host, port, username, auth_method, password, private_key, passphrase, proxy_id, ssh_key_id } = req.body;
+        const { host, port, username, auth_method, password, private_key, passphrase, proxy_id, ssh_key_id, login_credential_id } = req.body;
 
-        // 基本验证
-        if (!host || !port || !username || !auth_method) {
-            res.status(400).json({ success: false, message: '缺少必要的连接信息 (host, port, username, auth_method)。' });
+        if (!host || !port) {
+            res.status(400).json({ success: false, message: '缺少必要的连接信息 (host, port)。' });
             return;
-        }
-        // 密码认证时，password 字段必须存在，但可以为空字符串
-        if (auth_method === 'password' && password === undefined) {
-            res.status(400).json({ success: false, message: '密码认证方式需要提供 password 字段 (可以为空字符串)。' });
-            return;
-        }
-        // 密钥认证时，必须提供 ssh_key_id 或 private_key
-        if (auth_method === 'key' && !ssh_key_id && !private_key) {
-            res.status(400).json({ success: false, message: '密钥认证方式需要提供 ssh_key_id 或 private_key。' });
-            return;
-        }
-        // 如果同时提供了 ssh_key_id 和 private_key，优先使用 ssh_key_id (或者可以报错，这里选择优先)
-        if (auth_method === 'key' && ssh_key_id && private_key) {
-             console.warn('[testUnsavedConnection] 同时提供了 ssh_key_id 和 private_key，将优先使用 ssh_key_id。');
-             // 不需要额外操作，后续逻辑会处理
         }
 
-        // 构建传递给服务层的连接配置对象
-        // 注意：这里传递的是未经验证和加密处理的原始数据
+        let resolvedUsername = username;
+        let resolvedAuthMethod = auth_method;
+        let resolvedPassword = password;
+        let resolvedPrivateKey = private_key;
+        let resolvedPassphrase = passphrase;
+        let resolvedSshKeyId = ssh_key_id ? parseInt(ssh_key_id, 10) : null;
+
+        if (login_credential_id !== undefined && login_credential_id !== null) {
+            const credentialId = parseInt(login_credential_id, 10);
+            if (isNaN(credentialId)) {
+                res.status(400).json({ success: false, message: '登录凭证 ID 必须是有效的数字。' });
+                return;
+            }
+
+            const credential = await LoginCredentialService.getDecryptedLoginCredentialById(credentialId);
+            if (!credential) {
+                res.status(400).json({ success: false, message: `登录凭证 ID ${credentialId} 未找到。` });
+                return;
+            }
+
+            resolvedUsername = credential.username;
+            resolvedAuthMethod = credential.auth_method;
+            resolvedPassword = credential.password;
+            resolvedPrivateKey = credential.privateKey;
+            resolvedPassphrase = credential.passphrase;
+            resolvedSshKeyId = credential.ssh_key_id ?? null;
+        } else {
+            if (!resolvedUsername || !resolvedAuthMethod) {
+                res.status(400).json({ success: false, message: '缺少必要的连接信息 (username, auth_method)。' });
+                return;
+            }
+            if (resolvedAuthMethod === 'password' && resolvedPassword === undefined) {
+                res.status(400).json({ success: false, message: '密码认证方式需要提供 password 字段 (可以为空字符串)。' });
+                return;
+            }
+            if (resolvedAuthMethod === 'key' && !resolvedSshKeyId && !resolvedPrivateKey) {
+                res.status(400).json({ success: false, message: '密钥认证方式需要提供 ssh_key_id 或 private_key。' });
+                return;
+            }
+        }
+
         const connectionConfig = {
             host,
-            port: parseInt(port, 10), // 确保 port 是数字
-            username,
-            auth_method,
-            password, // 传递原始密码
-            private_key: ssh_key_id ? undefined : private_key, // 如果有 ssh_key_id，则不传递 private_key
-            passphrase: ssh_key_id ? undefined : passphrase,   // 如果有 ssh_key_id，则不传递 passphrase
-            ssh_key_id: ssh_key_id ? parseInt(ssh_key_id, 10) : null, // 传递 ssh_key_id (确保是数字或 null)
-            proxy_id: proxy_id ? parseInt(proxy_id, 10) : null // 确保 proxy_id 是数字或 null
+            port: parseInt(port, 10),
+            username: resolvedUsername,
+            auth_method: resolvedAuthMethod,
+            password: resolvedPassword,
+            private_key: resolvedSshKeyId ? undefined : resolvedPrivateKey,
+            passphrase: resolvedSshKeyId ? undefined : resolvedPassphrase,
+            ssh_key_id: resolvedSshKeyId,
+            login_credential_id: login_credential_id ? parseInt(login_credential_id, 10) : null,
+            proxy_id: proxy_id ? parseInt(proxy_id, 10) : null
         };
 
         // 验证 port 和 proxy_id 是否为有效数字
@@ -192,7 +216,7 @@ export const testUnsavedConnection = async (req: Request, res: Response): Promis
              return;
         }
         // 验证 ssh_key_id (如果提供了)
-        if (ssh_key_id && isNaN(connectionConfig.ssh_key_id as number)) {
+        if (resolvedSshKeyId && isNaN(connectionConfig.ssh_key_id as number)) {
              res.status(400).json({ success: false, message: 'SSH 密钥 ID 必须是有效的数字。' });
              return;
         }

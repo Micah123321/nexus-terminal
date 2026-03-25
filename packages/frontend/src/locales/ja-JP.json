@@ -320,7 +320,39 @@
         "noConnectionsMatchSearch": "検索条件に一致する接続はありません。",
         "searchConnectionsPlaceholder": "接続を検索...",
         "viewAllConnections": "すべての接続を表示",
-        "viewFullAuditLog": "完全な監査ログを表示"
+        "viewFullAuditLog": "完全な監査ログを表示",
+        "summaryLoadFailed": "ダッシュボード統計の読み込みに失敗しました",
+        "emptyChart": "利用できる統計データがありません",
+        "listShowing": "先頭 {count} 件を表示中",
+        "topConnections": "最近もっとも活発な接続",
+        "topConnectionsHint": "直近 7 日間の SSH 関連監査イベント数で集計",
+        "activityCount": "{count} 件",
+        "lastSeen": "最終確認: {time}",
+        "summaryCards": {
+            "connections": "接続総数",
+            "activeConnections7d": "7日以内のアクティブ接続",
+            "taggedConnections": "タグ付き接続",
+            "auditLogs": "監査ログ総数",
+            "sshSuccess24h": "24時間の SSH 成功",
+            "sshFailure24h": "24時間の SSH 失敗"
+        },
+        "summaryHints": {
+            "connections": "ホーム画面で接続資産、活動状況、リスクの兆候をまとめて確認できます。",
+            "activeConnections7d": "直近 7 日で少なくとも 1 回利用された接続数",
+            "taggedConnections": "タグで整理済みの接続数",
+            "auditLogs": "現在のデータベースに保存されている監査イベント総数",
+            "sshSuccess24h": "過去 24 時間に成功した SSH 接続イベント数",
+            "sshFailure24h": "過去 24 時間に失敗した SSH 接続または Shell 起動イベント数"
+        },
+        "charts": {
+            "activityTrend7d": "直近 7 日のアクティビティ推移",
+            "activityTrendHint": "直近 1 週間の監査イベント数を日別に表示",
+            "connectionTypes": "接続タイプ分布",
+            "connectionTypesHint": "現在の接続資産をプロトコル別に可視化",
+            "actionBreakdown7d": "直近 7 日のイベント分布",
+            "actionBreakdownHint": "最近 1 週間で発生頻度が高い監査イベント種別",
+            "eventCount": "イベント数"
+        }
     },
     "dockerManager": {
         "action": {

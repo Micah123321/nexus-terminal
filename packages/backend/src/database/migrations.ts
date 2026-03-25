@@ -306,6 +306,34 @@ const definedMigrations: Migration[] = [
         sql: `
             ALTER TABLE quick_commands ADD COLUMN variables TEXT NULL;
         `
+    },
+    {
+        id: 11,
+        name: 'Add login_credentials table and login_credential_id to connections',
+        check: async (db: Database): Promise<boolean> => {
+            const credentialsTableExists = await tableExists(db, 'login_credentials');
+            const loginCredentialColumnExists = await columnExists(db, 'connections', 'login_credential_id');
+            return !credentialsTableExists || !loginCredentialColumnExists;
+        },
+        sql: `
+            CREATE TABLE IF NOT EXISTS login_credentials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                type TEXT NOT NULL CHECK(type IN ('SSH', 'RDP', 'VNC')),
+                username TEXT NOT NULL,
+                auth_method TEXT NOT NULL CHECK(auth_method IN ('password', 'key')),
+                encrypted_password TEXT NULL,
+                encrypted_private_key TEXT NULL,
+                encrypted_passphrase TEXT NULL,
+                ssh_key_id INTEGER NULL,
+                notes TEXT NULL,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                FOREIGN KEY (ssh_key_id) REFERENCES ssh_keys(id) ON DELETE SET NULL
+            );
+
+            ALTER TABLE connections ADD COLUMN login_credential_id INTEGER NULL REFERENCES login_credentials(id) ON DELETE SET NULL;
+        `
     }
 ];
 

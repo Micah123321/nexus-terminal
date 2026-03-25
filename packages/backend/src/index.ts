@@ -51,6 +51,7 @@ import quickCommandsRoutes from './quick-commands/quick-commands.routes';
 import terminalThemeRoutes from './terminal-themes/terminal-theme.routes';
 import appearanceRoutes from './appearance/appearance.routes';
 import sshKeysRouter from './ssh_keys/ssh_keys.routes'; 
+import loginCredentialsRouter from './login-credentials/login-credentials.routes';
 import quickCommandTagRoutes from './quick-command-tags/quick-command-tag.routes'; 
 import sshSuspendRouter from './ssh-suspend/ssh-suspend.routes';
 import { transfersRoutes } from './transfers/transfers.routes';
@@ -259,6 +260,7 @@ const startServer = () => {
     app.use('/api/v1/terminal-themes', terminalThemeRoutes);
     app.use('/api/v1/appearance', appearanceRoutes);
     app.use('/api/v1/ssh-keys', sshKeysRouter); 
+    app.use('/api/v1/login-credentials', loginCredentialsRouter);
     app.use('/api/v1/quick-command-tags', quickCommandTagRoutes);
     app.use('/api/v1/ssh-suspend', sshSuspendRouter); 
     app.use('/api/v1/transfers', transfersRoutes());

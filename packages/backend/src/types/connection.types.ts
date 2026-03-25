@@ -6,6 +6,7 @@ export interface ConnectionBase {
     port: number;
     username: string;
     auth_method: 'password' | 'key';
+    login_credential_id?: number | null;
     proxy_id: number | null;
     proxy_type?: 'proxy' | 'jump' | null; 
     created_at: number;
@@ -25,12 +26,13 @@ export interface CreateConnectionInput {
     type: 'SSH' | 'RDP' | 'VNC';
     host: string;
     port?: number;
-    username: string;
-    auth_method: 'password' | 'key';
+    username?: string;
+    auth_method?: 'password' | 'key';
     password?: string; 
     private_key?: string; 
     passphrase?: string;
     ssh_key_id?: number | null; 
+    login_credential_id?: number | null;
     proxy_id?: number | null;
     proxy_type?: 'proxy' | 'jump' | null; 
     tag_ids?: number[];
@@ -50,6 +52,7 @@ export interface UpdateConnectionInput {
     private_key?: string;
     passphrase?: string;
     ssh_key_id?: number | null;
+    login_credential_id?: number | null;
     proxy_id?: number | null;
     proxy_type?: 'proxy' | 'jump' | null;
 notes?: string | null;
@@ -70,6 +73,7 @@ export interface FullConnectionData {
     encrypted_private_key: string | null;
     encrypted_passphrase: string | null;
     ssh_key_id?: number | null; 
+    login_credential_id?: number | null;
     proxy_id: number | null;
     proxy_type?: 'proxy' | 'jump' | null; 
     created_at: number;

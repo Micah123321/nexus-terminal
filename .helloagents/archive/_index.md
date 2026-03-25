@@ -20,6 +20,7 @@
 | 202603252310 | connections-tree-search-explorer-polish | implementation | frontend | - | ✅完成 |
 | 202603252336 | connections-tree-hover-drag-polish | implementation | frontend | - | ✅完成 |
 | 202603252340 | command-input-multiline-shortcut | implementation | frontend | command-input-multiline-shortcut#D001 | ✅完成 |
+| 202603252343 | dashboard-management-cockpit | implementation | frontend, backend | dashboard-management-cockpit#D001, dashboard-management-cockpit#D002 | ✅完成 |
 | 202603252229 | terminal-tab-group-visual | implementation | frontend | terminal-tab-group-visual#D001 | ✅完成 |
 | 202603252256 | workspace-monitor-terminal-polish | implementation | workspace-root | workspace-monitor-terminal-polish#D001 | ✅完成 |
 | 202603251200 | workspace-workbench-monitor | implementation | frontend, backend | workspace-workbench-monitor#D001 | ✅完成 |
@@ -40,6 +41,7 @@
 - [202603252310_connections-tree-search-explorer-polish](./2026-03/202603252310_connections-tree-search-explorer-polish/) - 为连接管理页补左侧树搜索、命中链路过滤、节点计数高亮和资源管理器式头部布局
 - [202603252336_connections-tree-hover-drag-polish](./2026-03/202603252336_connections-tree-hover-drag-polish/) - 为连接管理页补树节点 hover 工具、分隔标题行和拖拽重排占位反馈
 - [202603252340_command-input-multiline-shortcut](./2026-03/202603252340_command-input-multiline-shortcut/) - 将命令输入框改为多行自动增高，并改用 Ctrl+Shift+Enter 发送
+- [202603252343_dashboard-management-cockpit](./2026-03/202603252343_dashboard-management-cockpit/) - 将首页升级为统计卡片、趋势/分布图和活跃连接排行组成的 dashboard 驾驶舱，并补充 summary 聚合接口
 - [202603252229_terminal-tab-group-visual](./2026-03/202603252229_terminal-tab-group-visual/) - 将顶部终端标签栏改成更明显的服务器组头与终端子标签
 - [202603252256_workspace-monitor-terminal-polish](./2026-03/202603252256_workspace-monitor-terminal-polish/) - 重新核对状态监控与终端标签剩余改动，并修正知识库归档索引与活跃方案状态
 - [202603251200_workspace-workbench-monitor](./2026-03/202603251200_workspace-workbench-monitor/) - `/workspace` 改为三栏 Workbench 布局，并新增开机累计流量监控

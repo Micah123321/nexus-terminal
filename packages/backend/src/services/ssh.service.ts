@@ -57,6 +57,7 @@ export interface DecryptedConnectionDetails {
     } | null;
     jump_chain?: JumpHostDetail[]; 
     connection_proxy_setting?: 'proxy' | 'jump' | null; 
+    login_credential_id?: number | null;
 }
 
 /**
@@ -82,32 +83,38 @@ export const getConnectionDetails = async (connectionId: number): Promise<Decryp
             name: typedRawConnInfo.name ?? (() => { throw new Error(`Connection ID ${connectionId} has null name.`); })(),
             host: typedRawConnInfo.host ?? (() => { throw new Error(`Connection ID ${connectionId} has null host.`); })(),
             port: typedRawConnInfo.port ?? (() => { throw new Error(`Connection ID ${connectionId} has null port.`); })(),
-            username: typedRawConnInfo.username ?? (() => { throw new Error(`Connection ID ${connectionId} has null username.`); })(),
-            auth_method: typedRawConnInfo.auth_method ?? (() => { throw new Error(`Connection ID ${connectionId} has null auth_method.`); })(),
+            username: typedRawConnInfo.login_credential_username ?? typedRawConnInfo.username ?? (() => { throw new Error(`Connection ID ${connectionId} has null username.`); })(),
+            auth_method: typedRawConnInfo.login_credential_auth_method ?? typedRawConnInfo.auth_method ?? (() => { throw new Error(`Connection ID ${connectionId} has null auth_method.`); })(),
             password: undefined,
             privateKey: undefined,
             passphrase: undefined,
             proxy: null,
             jump_chain: undefined,
             connection_proxy_setting: typedRawConnInfo.proxy_type ?? null,
+            login_credential_id: typedRawConnInfo.login_credential_id ?? null,
         };
 
-        if (fullConnInfo.auth_method === 'password' && rawConnInfo.encrypted_password) {
-            fullConnInfo.password = decrypt(rawConnInfo.encrypted_password);
+        const encryptedPassword = typedRawConnInfo.login_credential_encrypted_password ?? rawConnInfo.encrypted_password;
+        const encryptedPrivateKey = typedRawConnInfo.login_credential_encrypted_private_key ?? typedRawConnInfo.encrypted_private_key;
+        const encryptedPassphrase = typedRawConnInfo.login_credential_encrypted_passphrase ?? typedRawConnInfo.encrypted_passphrase;
+        const sshKeyId = typedRawConnInfo.login_credential_ssh_key_id ?? typedRawConnInfo.ssh_key_id;
+
+        if (fullConnInfo.auth_method === 'password' && encryptedPassword) {
+            fullConnInfo.password = decrypt(encryptedPassword);
         }
         else if (fullConnInfo.auth_method === 'key') {
-            if (typedRawConnInfo.ssh_key_id) {
-                const storedKeyDetails = await SshKeyService.getDecryptedSshKeyById(typedRawConnInfo.ssh_key_id);
+            if (sshKeyId) {
+                const storedKeyDetails = await SshKeyService.getDecryptedSshKeyById(sshKeyId);
                 if (!storedKeyDetails) {
-                    console.error(`SshService: Error: Connection ${connectionId} references non-existent SSH key ID ${typedRawConnInfo.ssh_key_id}`);
-                    throw new Error(`关联的 SSH 密钥 (ID: ${typedRawConnInfo.ssh_key_id}) 未找到。`);
+                    console.error(`SshService: Error: Connection ${connectionId} references non-existent SSH key ID ${sshKeyId}`);
+                    throw new Error(`关联的 SSH 密钥 (ID: ${sshKeyId}) 未找到。`);
                 }
                 fullConnInfo.privateKey = storedKeyDetails.privateKey;
                 fullConnInfo.passphrase = storedKeyDetails.passphrase;
-            } else if (typedRawConnInfo.encrypted_private_key) {
-                fullConnInfo.privateKey = decrypt(typedRawConnInfo.encrypted_private_key);
-                if (typedRawConnInfo.encrypted_passphrase) {
-                    fullConnInfo.passphrase = decrypt(typedRawConnInfo.encrypted_passphrase);
+            } else if (encryptedPrivateKey) {
+                fullConnInfo.privateKey = decrypt(encryptedPrivateKey);
+                if (encryptedPassphrase) {
+                    fullConnInfo.passphrase = decrypt(encryptedPassphrase);
                 }
             } else {
                  console.warn(`SshService: Connection ${connectionId} uses key auth but has neither ssh_key_id nor encrypted_private_key.`);
@@ -670,6 +677,7 @@ export const testUnsavedConnection = async (connectionConfig: {
     private_key?: string;
     passphrase?: string;
     ssh_key_id?: number | null;
+    login_credential_id?: number | null;
     proxy_id?: number | null;
 }): Promise<{ latency: number }> => {
     console.log(`SshService: 测试未保存的连接到 ${connectionConfig.host}:${connectionConfig.port}...`);

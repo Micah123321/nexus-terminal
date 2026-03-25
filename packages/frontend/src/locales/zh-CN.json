@@ -1480,7 +1480,39 @@
     },
     "noConnectionsWithTag": "该标签下没有连接记录",
     "noConnectionsMatchSearch": "没有连接匹配搜索条件",
-    "searchConnectionsPlaceholder": "搜索连接..."
+    "searchConnectionsPlaceholder": "搜索连接...",
+    "summaryLoadFailed": "仪表盘统计加载失败",
+    "emptyChart": "暂无统计数据",
+    "listShowing": "显示前 {count} 项",
+    "topConnections": "近期最活跃连接",
+    "topConnectionsHint": "按最近 7 天 SSH 相关审计事件聚合排序",
+    "activityCount": "{count} 次",
+    "lastSeen": "最近出现: {time}",
+    "summaryCards": {
+      "connections": "连接总数",
+      "activeConnections7d": "近 7 天活跃连接",
+      "taggedConnections": "已打标签连接",
+      "auditLogs": "审计日志总数",
+      "sshSuccess24h": "24 小时 SSH 成功",
+      "sshFailure24h": "24 小时 SSH 失败"
+    },
+    "summaryHints": {
+      "connections": "首页现在会直接展示连接资产、活动趋势和风险信号。",
+      "activeConnections7d": "最近 7 天内至少连接过一次的连接数",
+      "taggedConnections": "已经通过标签完成归类的连接数",
+      "auditLogs": "当前数据库中保留的全部审计事件数量",
+      "sshSuccess24h": "最近 24 小时内成功建立的 SSH 连接事件",
+      "sshFailure24h": "最近 24 小时内 SSH 连接或 Shell 打开失败事件"
+    },
+    "charts": {
+      "activityTrend7d": "近 7 天活动趋势",
+      "activityTrendHint": "按天统计最近一周的审计事件量",
+      "connectionTypes": "连接类型分布",
+      "connectionTypesHint": "当前连接资产按协议的占比情况",
+      "actionBreakdown7d": "近 7 天事件分布",
+      "actionBreakdownHint": "最近一周出现频率最高的审计事件类型",
+      "eventCount": "事件数"
+    }
   },
   "terminalTabBar": {
     "selectServerTitle": "选择要连接的服务器",

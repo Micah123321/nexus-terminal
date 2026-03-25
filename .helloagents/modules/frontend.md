@@ -39,6 +39,11 @@
 **行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`CommandInputBar.vue` 当前已将底部命令框升级为支持会话级草稿保留的多行 `textarea`：普通 `Enter` 插入换行，`Ctrl+Shift+Enter` 发送当前命令，输入框会按内容自动增高至约 6 行，超出后在输入框内部滚动，并继续兼容快捷指令/命令历史同步与选中发送逻辑。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值；`Terminal.vue` 会跟踪 xterm 的视口行号与贴底状态，在终端标签切换、重新激活和 `fit()` 后按原滚动意图恢复，并在渲染层为带 `xterm-fg-*` class 或内联 `style.color` 的显式前景色字符打标记，让终端文字描边/阴影仅作用于默认前景文本，不覆盖 ANSI 彩色输出；`session.store` 当前会为同一 SSH 连接下的新终端分配递增的 `terminalIndex`，`TerminalTabBar.vue` 则进一步把连续同连接会话渲染成“服务器组头 + 终端子标签 + 组尾新增按钮”，全局 `+` 只负责选择其他服务器，从而让“单连接默认 1 个终端、可继续追加多个终端”的关系在顶部标签栏里更接近参考图；`ConnectionsView.vue` 已升级为“左侧范围树 + 顶部搜索工具条 + 右侧结果列表”的双栏管理台，当前左侧进一步支持基于标签名路径分隔符推导的多级标签树、树节点展开状态持久化、分组 scope 恢复，以及树工具栏中的展开全部、收起全部和重置范围控制；近期又补上了独立的左侧树搜索、命中节点及祖先路径过滤、命中链路自动展开、节点计数高亮，以及更接近资源管理器的树头部布局；本轮继续为树节点加入 hover 工具按钮、资源管理器式分隔标题行与拖拽重排占位反馈；右侧结果列表则同时支持顶部排序控件、列头点击排序，并将行内操作整理为“连接”主按钮加“更多”菜单（编辑/测试/克隆/删除）；样式编辑器中的终端文字描边/阴影默认开关也已与新的黑绿终端风格保持默认开启。  
 **结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中工作区终端行为和标签交互优先落在 `session.store.ts`、`session/actions/sessionActions.ts`、`session/getters.ts`、`TerminalTabBar.vue`、`WorkspaceView.vue`、`Terminal.vue` 与相关 locale 文件。
 
+### 仪表盘总览
+**条件**: 用户登录后访问 `/` 首页仪表盘。  
+**行为**: `DashboardView.vue` 当前会并行拉取连接列表、最近审计日志、标签列表和新的 dashboard summary 数据，并将总览区拆到 `DashboardOverviewPanel.vue`：顶部提供连接总数、近 7 天活跃连接、标签覆盖率、审计日志总量、24 小时 SSH 成功/失败等统计卡片，中部展示近 7 天活动趋势、连接类型分布和事件类型分布图表，下方展示高频连接排行；`dashboard.store.ts` 负责缓存 `/api/v1/dashboard/summary` 的聚合结果，原有连接列表和最近活动则继续复用 `connections.store.ts` 与 `audit.store.ts`。  
+**结果**: 首页从“列表首页”升级为“总览 + 操作入口”的管理驾驶舱，用户可在同一页面完成扫描、筛选和直接连接。
+
 ## 依赖关系
 
 ```yaml

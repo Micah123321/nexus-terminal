@@ -1476,7 +1476,39 @@
     },
     "noConnectionsWithTag": "No connections found with this tag",
     "noConnectionsMatchSearch": "No connections match your search.",
-    "searchConnectionsPlaceholder": "Search connections..."
+    "searchConnectionsPlaceholder": "Search connections...",
+    "summaryLoadFailed": "Failed to load dashboard summary",
+    "emptyChart": "No statistics available yet",
+    "listShowing": "Showing the first {count} items",
+    "topConnections": "Top Active Connections",
+    "topConnectionsHint": "Ranked by SSH-related audit activity in the last 7 days",
+    "activityCount": "{count} events",
+    "lastSeen": "Last seen: {time}",
+    "summaryCards": {
+      "connections": "Total Connections",
+      "activeConnections7d": "Active in 7 Days",
+      "taggedConnections": "Tagged Connections",
+      "auditLogs": "Total Audit Logs",
+      "sshSuccess24h": "SSH Success in 24h",
+      "sshFailure24h": "SSH Failures in 24h"
+    },
+    "summaryHints": {
+      "connections": "Your homepage now highlights connection assets, activity, and risk signals at a glance.",
+      "activeConnections7d": "Connections used at least once in the last 7 days",
+      "taggedConnections": "Connections already organized with tags",
+      "auditLogs": "All retained audit events in the current database",
+      "sshSuccess24h": "Successful SSH connection events over the last 24 hours",
+      "sshFailure24h": "Failed SSH or shell-open events over the last 24 hours"
+    },
+    "charts": {
+      "activityTrend7d": "Activity Trend (7 Days)",
+      "activityTrendHint": "Daily audit event volume for the latest week",
+      "connectionTypes": "Connection Type Distribution",
+      "connectionTypesHint": "Current asset composition by protocol",
+      "actionBreakdown7d": "Event Breakdown (7 Days)",
+      "actionBreakdownHint": "Most frequent audit event types in the latest week",
+      "eventCount": "Event Count"
+    }
   },
   "terminalTabBar": {
     "selectServerTitle": "Select server to connect",

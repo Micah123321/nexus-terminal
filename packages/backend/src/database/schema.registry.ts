@@ -65,6 +65,7 @@ export const tableDefinitions: TableDefinition[] = [
     // Features like proxies, connections, tags
     { name: 'proxies', sql: schemaSql.createProxiesTableSQL },
     { name: 'ssh_keys', sql: schemaSql.createSshKeysTableSQL }, // Added SSH Keys table
+    { name: 'login_credentials', sql: schemaSql.createLoginCredentialsTableSQL },
     { name: 'connections', sql: schemaSql.createConnectionsTableSQL }, // Depends on proxies, ssh_keys
     { name: 'tags', sql: schemaSql.createTagsTableSQL },
     { name: 'connection_tags', sql: schemaSql.createConnectionTagsTableSQL }, // Depends on connections, tags

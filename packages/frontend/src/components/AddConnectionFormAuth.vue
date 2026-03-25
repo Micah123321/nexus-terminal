@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import SshKeySelector from './SshKeySelector.vue'; // Assuming SshKeySelector is used here
+import LoginCredentialSelector from './LoginCredentialSelector.vue';
 
 // Define Props. formData is expected to be a reactive object from the parent composable.
 const props = defineProps<{
   formData: {
     type: 'SSH' | 'RDP' | 'VNC';
+    credential_source: 'direct' | 'saved';
+    login_credential_id: number | null;
     username: string;
     auth_method: 'password' | 'key'; // SSH specific
     password?: string; // Optional because it might not be set or sent
@@ -22,6 +25,37 @@ const { t } = useI18n();
   <!-- Authentication Section -->
   <div class="space-y-4 p-4 border border-border rounded-md bg-header/30">
     <h4 class="text-base font-semibold mb-3 pb-2 border-b border-border/50">{{ t('connections.form.sectionAuth', '认证信息') }}</h4>
+    <div>
+      <label class="block text-sm font-medium text-text-secondary mb-1">{{ t('connections.form.credentialSource', '认证来源') }}</label>
+      <div class="flex rounded-md shadow-sm">
+        <button type="button"
+                @click="props.formData.credential_source = 'direct'"
+                :class="['flex-1 px-3 py-2 border border-border text-sm font-medium focus:outline-none',
+                         props.formData.credential_source === 'direct' ? 'bg-primary text-white' : 'bg-background text-foreground hover:bg-border',
+                         'rounded-l-md']">
+          {{ t('connections.form.credentialSourceDirect', '账号密码 / 密钥') }}
+        </button>
+        <button type="button"
+                @click="props.formData.credential_source = 'saved'"
+                :class="['flex-1 px-3 py-2 border border-border text-sm font-medium focus:outline-none -ml-px',
+                         props.formData.credential_source === 'saved' ? 'bg-primary text-white' : 'bg-background text-foreground hover:bg-border',
+                         'rounded-r-md']">
+          {{ t('connections.form.credentialSourceSaved', '使用已保存凭证') }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="props.formData.credential_source === 'saved'" class="space-y-3">
+      <div>
+        <label class="block text-sm font-medium text-text-secondary mb-1">{{ t('connections.form.savedLoginCredential', '登录凭证') }}</label>
+        <LoginCredentialSelector v-model="props.formData.login_credential_id" :connection-type="props.formData.type" />
+      </div>
+      <p class="text-xs text-text-secondary">
+        {{ t('connections.form.savedCredentialHint', '已保存凭证会在连接和测试时优先使用；切回直填后仍可继续手工输入。') }}
+      </p>
+    </div>
+
+    <template v-else>
     <div>
       <label for="conn-username" class="block text-sm font-medium text-text-secondary mb-1">{{ t('connections.form.username') }}</label>
       <input type="text" id="conn-username" v-model="props.formData.username" required
@@ -80,6 +114,7 @@ const { t } = useI18n();
         <input type="password" id="conn-password-vnc" v-model="props.formData.vncPassword" :required="!isEditMode" autocomplete="new-password"
                class="w-full px-3 py-2 border border-border rounded-md shadow-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary" />
       </div>
+    </template>
     </template>
   </div>
 </template>

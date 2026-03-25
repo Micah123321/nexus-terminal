@@ -18,6 +18,10 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 新增
+- **[frontend]**: 将首页仪表盘升级为统计卡片、趋势/分布图和活跃连接排行组成的管理驾驶舱 — by yinjianm
+  - 方案: [202603252343_dashboard-management-cockpit](archive/2026-03/202603252343_dashboard-management-cockpit/)
+- **[backend]**: 新增 `/api/v1/dashboard/summary` 聚合接口，统一输出首页所需的连接、审计和 SSH 统计摘要 — by yinjianm
+  - 方案: [202603252343_dashboard-management-cockpit](archive/2026-03/202603252343_dashboard-management-cockpit/)
 - **[frontend]**: 将底部命令输入框升级为支持多行草稿与自动增高，并把发送快捷键改为 `Ctrl+Shift+Enter` — by yinjianm
   - 方案: [202603252340_command-input-multiline-shortcut](archive/2026-03/202603252340_command-input-multiline-shortcut/)
 - **[frontend]**: 将服务器状态中的内存与磁盘区域升级为卡片化监控视图，补齐环形内存占比、磁盘设备信息、读写速率与挂载表格展示 — by yinjianm

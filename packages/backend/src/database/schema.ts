@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS connections (
     encrypted_passphrase TEXT NULL,
     proxy_id INTEGER NULL,
     ssh_key_id INTEGER NULL, 
+    login_credential_id INTEGER NULL,
 notes TEXT NULL,
 jump_chain TEXT NULL,
 proxy_type TEXT NULL, 
@@ -101,7 +102,26 @@ created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     last_connected_at INTEGER NULL,
     FOREIGN KEY (proxy_id) REFERENCES proxies(id) ON DELETE SET NULL,
-    FOREIGN KEY (ssh_key_id) REFERENCES ssh_keys(id) ON DELETE SET NULL 
+    FOREIGN KEY (ssh_key_id) REFERENCES ssh_keys(id) ON DELETE SET NULL,
+    FOREIGN KEY (login_credential_id) REFERENCES login_credentials(id) ON DELETE SET NULL
+);
+`;
+
+export const createLoginCredentialsTableSQL = `
+CREATE TABLE IF NOT EXISTS login_credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL CHECK(type IN ('SSH', 'RDP', 'VNC')),
+    username TEXT NOT NULL,
+    auth_method TEXT NOT NULL CHECK(auth_method IN ('password', 'key')),
+    encrypted_password TEXT NULL,
+    encrypted_private_key TEXT NULL,
+    encrypted_passphrase TEXT NULL,
+    ssh_key_id INTEGER NULL,
+    notes TEXT NULL,
+    created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    FOREIGN KEY (ssh_key_id) REFERENCES ssh_keys(id) ON DELETE SET NULL
 );
 `;
 
