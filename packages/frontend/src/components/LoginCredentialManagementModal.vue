@@ -304,7 +304,10 @@ const cancelForm = () => {
             </div>
             <div v-else>
               <label class="block text-sm font-medium text-text-secondary mb-1">{{ t('connections.form.sshKey', 'SSH 密钥') }}</label>
-              <SshKeySelector v-model="formData.ssh_key_id" />
+              <SshKeySelector
+                :model-value="formData.ssh_key_id ?? null"
+                @update:model-value="value => formData.ssh_key_id = value"
+              />
             </div>
           </template>
 

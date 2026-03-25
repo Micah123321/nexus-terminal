@@ -612,7 +612,13 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
     const availableTagIds = tags.value.map(t_ => t_.id);
     const currentSelectedValidTagIds = formData.tag_ids.filter(id => availableTagIds.includes(id));
 
-    if (!formData.host || !formData.username) {
+    const usingSavedCredential = formData.credential_source === 'saved';
+
+    if (!formData.host) {
+      uiNotificationsStore.showError(t('connections.form.errorRequiredFields'));
+      return;
+    }
+    if (!usingSavedCredential && !formData.username) {
       uiNotificationsStore.showError(t('connections.form.errorRequiredFields'));
       return;
     }
@@ -621,7 +627,12 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
         return;
     }
 
-    if (formData.type === 'SSH') {
+    if (usingSavedCredential && !formData.login_credential_id) {
+        uiNotificationsStore.showError(t('connections.form.errorLoginCredentialRequired', '请选择已保存的登录凭证。'));
+        return;
+    }
+
+    if (!usingSavedCredential && formData.type === 'SSH') {
         if (!isEditMode.value) {
             if (formData.auth_method === 'password' && !formData.password && !formData.host.includes('~')) {
                 uiNotificationsStore.showError(t('connections.form.errorPasswordRequired'));
@@ -641,12 +652,12 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
                  return;
              }
         }
-    } else if (formData.type === 'RDP') {
+    } else if (!usingSavedCredential && formData.type === 'RDP') {
         if (!isEditMode.value && !formData.password && !formData.host.includes('~')) {
             uiNotificationsStore.showError(t('connections.form.errorPasswordRequired'));
             return;
         }
-    } else if (formData.type === 'VNC') {
+    } else if (!usingSavedCredential && formData.type === 'VNC') {
         if (!isEditMode.value && !formData.vncPassword && !formData.host.includes('~')) {
             uiNotificationsStore.showError(t('connections.form.errorVncPasswordRequired', 'VNC 密码是必填项。'));
             return;
@@ -658,19 +669,23 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
 
         if (Array.isArray(parsedIpsResult)) {
             const ips = parsedIpsResult;
-            if (formData.type === 'SSH' && formData.auth_method === 'key' && !formData.selected_ssh_key_id) {
+            if (usingSavedCredential && !formData.login_credential_id) {
+                uiNotificationsStore.showError(t('connections.form.errorLoginCredentialRequired', '请选择已保存的登录凭证。'));
+                return;
+            }
+            if (!usingSavedCredential && formData.type === 'SSH' && formData.auth_method === 'key' && !formData.selected_ssh_key_id) {
                 uiNotificationsStore.showError(t('connections.form.errorSshKeyRequiredForBatch', '批量添加 SSH (密钥认证) 连接时，必须选择一个 SSH 密钥。'));
                 return;
             }
-            if (formData.type === 'SSH' && formData.auth_method === 'password' && !formData.password) {
+            if (!usingSavedCredential && formData.type === 'SSH' && formData.auth_method === 'password' && !formData.password) {
                 uiNotificationsStore.showError(t('connections.form.errorPasswordRequiredForBatchSSH', '批量添加 SSH (密码认证) 连接时，必须提供密码。'));
                 return;
             }
-            if (formData.type === 'RDP' && !formData.password) {
+            if (!usingSavedCredential && formData.type === 'RDP' && !formData.password) {
                 uiNotificationsStore.showError(t('connections.form.errorPasswordRequiredForBatchRDP', '批量添加 RDP 连接时，必须提供密码。'));
                 return;
             }
-            if (formData.type === 'VNC' && !formData.vncPassword) {
+            if (!usingSavedCredential && formData.type === 'VNC' && !formData.vncPassword) {
                 uiNotificationsStore.showError(t('connections.form.errorPasswordRequiredForBatchVNC', '批量添加 VNC 连接时，必须提供 VNC 密码。'));
                 return;
             }
@@ -689,23 +704,24 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
                     host: currentIp,
                     port: formData.port,
                     username: formData.username,
+                    login_credential_id: usingSavedCredential ? formData.login_credential_id : null,
                     notes: formData.notes,
                     proxy_id: formData.proxy_id || null,
                     tag_ids: currentSelectedValidTagIds,
                     proxy_type: formData.proxy_type,
                 };
 
-                if (formData.type === 'SSH') {
+                if (!usingSavedCredential && formData.type === 'SSH') {
                     dataForThisIp.auth_method = formData.auth_method;
                     if (formData.auth_method === 'password') {
                         dataForThisIp.password = formData.password;
                     } else if (formData.auth_method === 'key') {
                         dataForThisIp.ssh_key_id = formData.selected_ssh_key_id;
                     }
-                } else if (formData.type === 'RDP') {
+                } else if (!usingSavedCredential && formData.type === 'RDP') {
                     dataForThisIp.password = formData.password;
                     delete dataForThisIp.auth_method;
-                } else if (formData.type === 'VNC') {
+                } else if (!usingSavedCredential && formData.type === 'VNC') {
                     dataForThisIp.password = formData.vncPassword;
                     delete dataForThisIp.auth_method;
                 }
@@ -755,13 +771,14 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
         port: formData.port,
         notes: formData.notes,
         username: formData.username,
+        login_credential_id: usingSavedCredential ? formData.login_credential_id : null,
         proxy_id: formData.proxy_id || null,
         proxy_type: formData.proxy_type,
         tag_ids: currentSelectedValidTagIds,
         jump_chain: formData.jump_chain ? JSON.parse(JSON.stringify(formData.jump_chain)) : null,
     };
 
-    if (formData.type === 'SSH') {
+    if (!usingSavedCredential && formData.type === 'SSH') {
         dataToSend.auth_method = formData.auth_method;
         if (formData.auth_method === 'password') {
             if (formData.password) dataToSend.password = formData.password;
@@ -770,10 +787,10 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
                 dataToSend.ssh_key_id = formData.selected_ssh_key_id;
             }
         }
-    } else if (formData.type === 'RDP') {
+    } else if (!usingSavedCredential && formData.type === 'RDP') {
         if (formData.password) dataToSend.password = formData.password;
         delete dataToSend.auth_method;
-    } else if (formData.type === 'VNC') {
+    } else if (!usingSavedCredential && formData.type === 'VNC') {
         if (formData.vncPassword) dataToSend.password = formData.vncPassword;
         delete dataToSend.auth_method;
     }
@@ -866,16 +883,20 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
             auth_method: formData.auth_method,
             password: formData.auth_method === 'password' ? formData.password : undefined,
             proxy_id: formData.proxy_id || null,
+            login_credential_id: formData.credential_source === 'saved' ? formData.login_credential_id : null,
             ssh_key_id: formData.auth_method === 'key' ? formData.selected_ssh_key_id : undefined,
         };
 
-        if (!dataToSend.host || !dataToSend.port || !dataToSend.username || !dataToSend.auth_method) {
+        if (!dataToSend.host || !dataToSend.port) {
           throw new Error(t('connections.test.errorMissingFields'));
         }
-        if (dataToSend.auth_method === 'password' && !formData.password) {
+        if (formData.credential_source !== 'saved' && (!dataToSend.username || !dataToSend.auth_method)) {
+          throw new Error(t('connections.test.errorMissingFields'));
+        }
+        if (formData.credential_source !== 'saved' && dataToSend.auth_method === 'password' && !formData.password) {
            throw new Error(t('connections.form.errorPasswordRequired'));
        }
-       if (dataToSend.auth_method === 'key' && !dataToSend.ssh_key_id) {
+       if (formData.credential_source !== 'saved' && dataToSend.auth_method === 'key' && !dataToSend.ssh_key_id) {
           throw new Error(t('connections.form.errorSshKeyRequired'));
        }
         response = await apiClient.post('/connections/test-unsaved', dataToSend);

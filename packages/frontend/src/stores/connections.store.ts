@@ -10,6 +10,7 @@ export interface ConnectionInfo {
     port: number;
     username: string;
     auth_method: 'password' | 'key';
+    login_credential_id?: number | null;
     proxy_id?: number | null; // 关联的代理 ID (可选)
     proxy_type?: 'proxy' | 'jump' | null; 
     tag_ids?: number[]; // 关联的标签 ID 数组 (可选)
@@ -95,6 +96,7 @@ export const useConnectionsStore = defineStore('connections', {
             port: number;
             username: string;
             auth_method: 'password' | 'key'; // SSH specific
+            login_credential_id?: number | null;
             password?: string; // SSH password or general password
             private_key?: string; // SSH specific
             passphrase?: string; // SSH specific
@@ -129,7 +131,7 @@ export const useConnectionsStore = defineStore('connections', {
         // 更新连接 Action
         // 更新参数类型以包含 proxy_id 和 tag_ids
         // Update parameter type to include 'type' and VNC fields
-        async updateConnection(connectionId: number, updatedData: Partial<Omit<ConnectionInfo, 'id' | 'created_at' | 'updated_at' | 'last_connected_at'> & { type?: 'SSH' | 'RDP' | 'VNC'; password?: string; private_key?: string; passphrase?: string; vncPassword?: string; proxy_id?: number | null; proxy_type?: 'proxy' | 'jump' | null; tag_ids?: number[]; jump_chain?: number[] | null; }>) {
+        async updateConnection(connectionId: number, updatedData: Partial<Omit<ConnectionInfo, 'id' | 'created_at' | 'updated_at' | 'last_connected_at'> & { type?: 'SSH' | 'RDP' | 'VNC'; password?: string; private_key?: string; passphrase?: string; vncPassword?: string; proxy_id?: number | null; proxy_type?: 'proxy' | 'jump' | null; tag_ids?: number[]; jump_chain?: number[] | null; login_credential_id?: number | null; }>) {
             this.isLoading = true;
             this.error = null;
             try {

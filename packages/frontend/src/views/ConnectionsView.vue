@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AddConnectionForm from '../components/AddConnectionForm.vue';
 import BatchEditConnectionForm from '../components/BatchEditConnectionForm.vue';
+import LoginCredentialManagementModal from '../components/LoginCredentialManagementModal.vue';
 import { useConnectionsStore } from '../stores/connections.store';
 import { useSessionStore } from '../stores/session.store';
 import { useTagsStore } from '../stores/tags.store';
@@ -89,6 +90,7 @@ const tagsSectionExpanded = ref(true);
 
 const showAddEditConnectionForm = ref(false);
 const connectionToEdit = ref<ConnectionInfo | null>(null);
+const showLoginCredentialManagement = ref(false);
 
 const isBatchEditMode = ref(false);
 const selectedConnectionIdsForBatch = ref<Set<number>>(new Set());
@@ -1288,6 +1290,14 @@ onBeforeUnmount(() => {
                     <span>{{ t('connections.addConnection', '新增连接') }}</span>
                   </button>
                   <button
+                    @click="showLoginCredentialManagement = true"
+                    class="h-11 px-4 rounded-xl border border-border bg-background text-foreground hover:bg-border transition-colors inline-flex items-center gap-2"
+                    :title="t('connections.form.loginCredentialManager', '登录凭证')"
+                  >
+                    <i class="fas fa-key"></i>
+                    <span>{{ t('connections.form.loginCredentialManager', '登录凭证') }}</span>
+                  </button>
+                  <button
                     @click="handleTestAllFilteredConnections"
                     :disabled="isTestingAll || isLoadingConnections || !filteredAndSortedConnections.some(c => c.type === 'SSH')"
                     class="h-11 px-4 rounded-xl border border-border bg-background text-foreground hover:bg-border transition-colors inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1619,6 +1629,11 @@ onBeforeUnmount(() => {
         :connection-ids="Array.from(selectedConnectionIdsForBatch)"
         @update:visible="handleBatchEditFormClose"
         @saved="handleBatchEditSaved"
+      />
+
+      <LoginCredentialManagementModal
+        v-if="showLoginCredentialManagement"
+        @close="showLoginCredentialManagement = false"
       />
     </div>
   </div>

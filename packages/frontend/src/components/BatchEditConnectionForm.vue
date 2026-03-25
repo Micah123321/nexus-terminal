@@ -7,6 +7,7 @@ import { useUiNotificationsStore } from '../stores/uiNotifications.store';
 import { useProxiesStore } from '../stores/proxies.store';
 import { useTagsStore, type TagInfo } from '../stores/tags.store';
 import { useSshKeysStore, type SshKeyBasicInfo } from '../stores/sshKeys.store';
+import { useLoginCredentialsStore, type LoginCredentialBasicInfo } from '../stores/loginCredentials.store';
 import TagInput from './TagInput.vue';
 
 interface BatchUpdateData {
@@ -14,6 +15,7 @@ interface BatchUpdateData {
   username?: string | null;
   password?: string | null;
   ssh_key_id?: number | null;
+  login_credential_id?: number | null;
   proxy_id?: number | null;
   tag_ids?: number[];
   notes?: string | null;
@@ -38,6 +40,7 @@ const uiNotificationsStore = useUiNotificationsStore();
 const proxiesStore = useProxiesStore();
 const tagsStore = useTagsStore();
 const sshKeysStore = useSshKeysStore();
+const loginCredentialsStore = useLoginCredentialsStore();
 
 const internalVisible = ref(props.visible);
 const isLoading = ref(false);
@@ -51,6 +54,14 @@ const enableAdvancedEdit = ref(false);
 const availableTags = computed(() => tagsStore.tags as TagInfo[]);
 const availableProxies = computed(() => proxiesStore.proxies);
 const availableSshKeys = computed(() => sshKeysStore.sshKeys as SshKeyBasicInfo[]);
+const selectedConnections = computed(() => connectionsStore.connections.filter((conn) => props.connectionIds.includes(conn.id)));
+const selectedConnectionTypes = computed(() => Array.from(new Set(selectedConnections.value.map((conn) => conn.type))));
+const availableLoginCredentials = computed(() => {
+  if (selectedConnectionTypes.value.length !== 1) {
+    return [] as LoginCredentialBasicInfo[];
+  }
+  return loginCredentialsStore.loginCredentials.filter((credential) => credential.type === selectedConnectionTypes.value[0]);
+});
 
 watch(() => props.visible, (newVal) => {
   internalVisible.value = newVal;
@@ -60,6 +71,7 @@ watch(() => props.visible, (newVal) => {
       username: undefined,
       password: undefined,
       ssh_key_id: undefined,
+      login_credential_id: undefined,
       proxy_id: undefined,
       tag_ids: undefined,
       notes: undefined, // Keep notes initialization
@@ -77,6 +89,9 @@ watch(() => props.visible, (newVal) => {
     }
     if (availableSshKeys.value.length === 0 && !sshKeysStore.isLoading) {
       sshKeysStore.fetchSshKeys();
+    }
+    if (loginCredentialsStore.loginCredentials.length === 0 && !loginCredentialsStore.isLoading) {
+      loginCredentialsStore.fetchLoginCredentials();
     }
   }
 });
@@ -117,6 +132,14 @@ const handleSave = async () => {
     }
     if (formData.value.ssh_key_id !== undefined) {
       updatesToApply.ssh_key_id = formData.value.ssh_key_id;
+    }
+    if (formData.value.login_credential_id !== undefined) {
+      if (selectedConnectionTypes.value.length !== 1 && formData.value.login_credential_id !== null) {
+        uiNotificationsStore.addNotification({ message: t('connections.batchEdit.savedCredentialMixedType', '批量应用已保存凭证前，请先只选择同一种连接类型。'), type: 'warning' });
+        isLoading.value = false;
+        return;
+      }
+      updatesToApply.login_credential_id = formData.value.login_credential_id;
     }
   }
 
@@ -199,6 +222,9 @@ onMounted(() => {
     if (availableSshKeys.value.length === 0 && !sshKeysStore.isLoading) {
       sshKeysStore.fetchSshKeys();
     }
+    if (loginCredentialsStore.loginCredentials.length === 0 && !loginCredentialsStore.isLoading) {
+      loginCredentialsStore.fetchLoginCredentials();
+    }
   }
 });
 
@@ -261,6 +287,22 @@ onMounted(() => {
                   <option v-if="sshKeysStore.isLoading" disabled>{{ t('common.loading', '加载中...') }}</option>
                   <option v-for="key in availableSshKeys" :key="key.id" :value="key.id">
                     {{ key.name }}
+                  </option>
+                </select>
+              </div>
+              <div>
+                <label for="batch-login-credential" class="block text-sm font-medium text-text-secondary">{{ t('connections.form.savedLoginCredential', '已保存凭证') }}</label>
+                <select
+                  id="batch-login-credential"
+                  v-model="formData.login_credential_id"
+                  class="mt-1 block w-full px-3 py-2 border border-border rounded-md shadow-sm bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
+                  :disabled="loginCredentialsStore.isLoading"
+                >
+                  <option :value="undefined">{{ t('connections.batchEdit.noChange', '-- 不更改 --') }}</option>
+                  <option :value="null">{{ t('connections.form.clearSavedCredential', '取消已保存凭证') }}</option>
+                  <option v-if="selectedConnectionTypes.length !== 1" disabled>{{ t('connections.batchEdit.savedCredentialTypeHint', '仅支持同类型连接批量应用') }}</option>
+                  <option v-for="credential in availableLoginCredentials" :key="credential.id" :value="credential.id">
+                    {{ credential.name }} ({{ credential.username }})
                   </option>
                 </select>
               </div>
