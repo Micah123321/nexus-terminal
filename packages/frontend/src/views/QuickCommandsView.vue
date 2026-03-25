@@ -209,7 +209,7 @@
     <!-- Context Menu for Quick Commands -->
     <div
       v-if="quickCommandContextMenuVisible"
-      class="fixed bg-background border border-border/50 shadow-xl rounded-lg py-1.5 z-50 min-w-[180px] quick-command-context-menu"
+      class="fixed bg-card text-card-foreground border border-border shadow-xl rounded-lg py-1.5 z-50 min-w-[220px] quick-command-context-menu"
       :style="{ top: `${quickCommandContextMenuPosition.y}px`, left: `${quickCommandContextMenuPosition.x}px` }"
       @click.stop
     >
@@ -225,10 +225,10 @@
         <li
           v-if="quickCommandContextTargetCommand"
           class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
-          @click="handleQuickCommandMenuAction('pasteToTerminal', quickCommandContextTargetCommand!)"
+          @click="handleQuickCommandMenuAction('pasteToCommandInput', quickCommandContextTargetCommand!)"
         >
           <i class="fas fa-terminal w-4 text-center text-text-secondary group-hover:text-primary"></i>
-          <span>{{ t('quickCommands.actions.pasteToTerminal', '粘贴到终端') }}</span>
+          <span>{{ t('quickCommands.actions.pasteToCommandInput', '粘贴到命令输入框') }}</span>
         </li>
         <li
           v-if="quickCommandContextTargetCommand"
@@ -237,14 +237,6 @@
         >
           <i class="fas fa-copy w-4 text-center text-text-secondary group-hover:text-primary"></i>
           <span>{{ t('quickCommands.actions.copyCommand', '复制命令') }}</span>
-        </li>
-        <li
-          v-if="quickCommandContextTargetCommand"
-          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
-          @click="handleQuickCommandMenuAction('pasteToQuickInput', quickCommandContextTargetCommand!)"
-        >
-          <i class="fas fa-i-cursor w-4 text-center text-text-secondary group-hover:text-primary"></i>
-          <span>{{ t('quickCommands.actions.pasteToQuickInput', '粘贴到快捷输入框') }}</span>
         </li>
         <li
           v-if="quickCommandContextTargetCommand"
@@ -324,9 +316,8 @@ const quickCommandContextMenuPosition = ref({ x: 0, y: 0 });
 const quickCommandContextTargetCommand = ref<QuickCommandFE | null>(null);
 type QuickCommandContextAction =
   | 'runNow'
-  | 'pasteToTerminal'
+  | 'pasteToCommandInput'
   | 'copyCommand'
-  | 'pasteToQuickInput'
   | 'edit'
   | 'delete'
   | 'sendToAllSessions';
@@ -675,18 +666,7 @@ const pasteCommandToTerminalInput = async (cmd: QuickCommandFE) => {
   }
 
   sessionStore.updateSessionCommandInput(activeSessionId, await resolveProcessedCommand(cmd, activeSessionId));
-  uiNotificationsStore.showSuccess(t('quickCommands.notifications.pastedToTerminal', '已粘贴到终端输入框'));
-};
-
-const pasteCommandToQuickInput = async (cmd: QuickCommandFE) => {
-  const activeSessionId = sessionStore.activeSessionId;
-  quickCommandsStore.setSearchTerm(await resolveProcessedCommand(cmd, activeSessionId));
-  await nextTick();
-  if (searchInputRef.value) {
-    searchInputRef.value.focus();
-    searchInputRef.value.select();
-  }
-  uiNotificationsStore.showSuccess(t('quickCommands.notifications.pastedToQuickInput', '已粘贴到快捷输入框'));
+  uiNotificationsStore.showSuccess(t('quickCommands.notifications.pastedToCommandInput', '已粘贴到命令输入框'));
 };
 
 // +++ 聚焦搜索框的方法 +++
@@ -866,18 +846,13 @@ const handleQuickCommandMenuAction = async (action: QuickCommandContextAction, c
     return;
   }
 
-  if (action === 'pasteToTerminal') {
+  if (action === 'pasteToCommandInput') {
     await pasteCommandToTerminalInput(command);
     return;
   }
 
   if (action === 'copyCommand') {
     void copyCommand(command.command);
-    return;
-  }
-
-  if (action === 'pasteToQuickInput') {
-    await pasteCommandToQuickInput(command);
     return;
   }
 

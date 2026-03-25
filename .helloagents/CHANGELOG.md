@@ -8,6 +8,10 @@
 - 2026-03-25：继续微调 `/workspace` Workbench，新增默认“快捷指令”标签、调整三栏宽度到更接近 xterminal 参考图，并修复终端区域鼠标悬停时指针异常消失的问题。
 
 ### 修复
+- **[frontend]**: 修正快捷命令右键菜单的透明背景与粘贴项语义，改为实底菜单并将回填动作统一为“粘贴到命令输入框（不发送）” — by yinjianm
+  - 方案: [202603260156_quickcommands-context-menu-polish](archive/2026-03/202603260156_quickcommands-context-menu-polish/)
+- **[frontend]**: 将工作台文件区从单目录文件表格切换修正为多根目录常驻的文件夹总览视图 — by yinjianm
+  - 方案: [202603260150_workbench-file-folder-overview](archive/2026-03/202603260150_workbench-file-folder-overview/)
 - **[workspace-root]**: 重新核对工作区状态监控与终端标签剩余改动，确认当前前后端构建通过，并修正知识库归档索引与活跃方案状态 — by yinjianm
   - 方案: [202603252256_workspace-monitor-terminal-polish](archive/2026-03/202603252256_workspace-monitor-terminal-polish/)
 - **[frontend]**: 统一 `QuickCommandsView.vue` 的按钮主题适配，移除残留硬编码 hover 色值并切回主题变量体系 — by yinjianm
@@ -16,6 +20,11 @@
   - 方案: [202603250547_terminal-tab-scroll-restore](archive/2026-03/202603250547_terminal-tab-scroll-restore/)
 - **[frontend]**: 修复终端文字效果对 ANSI 彩色输出的覆盖问题，仅让默认前景文字保留描边/阴影效果 — by yinjianm
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
+
+### 快速修改
+- **[frontend]**: 收紧快捷指令编辑弹窗的最小尺寸、初始尺寸和视口上限，降低小分辨率下的弹窗溢出概率 — by yinjianm
+  - 类型: 快速修改（无方案包）
+  - 文件: packages/frontend/src/components/AddEditQuickCommandForm.vue:9,184-185,242-245
 
 ### 新增
 - **[frontend]**: 为工作台文件面板补齐左侧多根目录资源管理器，支持收藏路径与当前路径同屏作为多个根目录展开浏览 — by yinjianm

@@ -855,16 +855,14 @@
         "usageCount": "使用回数",
         "actions": {
           "runNow": "今すぐ実行",
-          "pasteToTerminal": "ターミナルに貼り付け",
+          "pasteToCommandInput": "コマンド入力欄に貼り付け",
           "copyCommand": "コマンドをコピー",
-          "pasteToQuickInput": "クイック入力欄に貼り付け",
           "edit": "編集",
           "delete": "削除",
           "sendToAllSessions": "すべてのサーバーに送信"
         },
         "notifications": {
-          "pastedToTerminal": "ターミナル入力欄に貼り付けました。",
-          "pastedToQuickInput": "クイック入力欄に貼り付けました。",
+          "pastedToCommandInput": "コマンド入力欄に貼り付けました。",
           "sentToAllSessions": "コマンドは {count} 台のサーバーに送信されました。",
           "noActiveSshSessions": "コマンドを送信するアクティブな SSH セッションはありません。"
         }

@@ -6,6 +6,8 @@
       :style="{
         width: resizableWidth ? `${resizableWidth}px` : undefined,
         height: resizableHeight ? `${resizableHeight}px` : undefined,
+        maxWidth: 'calc(100vw - 2rem)',
+        maxHeight: 'calc(100vh - 2rem)',
       }"
     >
       <h2 class="m-0 mb-6 text-center text-xl font-semibold">{{ isEditing ? t('quickCommands.form.titleEdit', '编辑快捷指令') : t('quickCommands.form.titleAdd', '添加快捷指令') }}</h2>
@@ -179,8 +181,8 @@ const isSubmitting = ref(false);
 
 const modalContentRef = ref<HTMLElement | null>(null);
 const commandTextareaRef = ref<HTMLTextAreaElement | null>(null);
-const R_MIN_WIDTH = 800; // 可调整大小的最小宽度 (像素)
-const R_MIN_HEIGHT = 700; // 可调整大小的最小高度 (像素)
+const R_MIN_WIDTH = 680; // 可调整大小的最小宽度 (像素)
+const R_MIN_HEIGHT = 520; // 可调整大小的最小高度 (像素)
 const placeholder = t('quickCommands.form.commandPlaceholder') + 'echo "Hello,\${USERNAME}"'
 
 const { width: resizableWidth, height: resizableHeight } = useResizable(modalContentRef, {
@@ -237,8 +239,8 @@ watch(() => formData.command, (newCommand) => {
 // 初始化表单数据 (如果是编辑模式)
 onMounted(() => {
   if (typeof window !== 'undefined') {
-    let initialW = Math.min(window.innerWidth * 0.9, 1152); // 目标 90vw，最大 1152px
-    let initialH = window.innerHeight * 0.85; // 目标 85vh
+    let initialW = Math.min(window.innerWidth * 0.82, 960); // 目标 82vw，最大 960px
+    let initialH = Math.min(window.innerHeight * 0.78, 720); // 目标 78vh，最大 720px
 
     initialW = Math.max(R_MIN_WIDTH, initialW);
     initialH = Math.max(R_MIN_HEIGHT, initialH);

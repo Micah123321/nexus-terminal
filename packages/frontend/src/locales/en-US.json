@@ -1434,16 +1434,14 @@
     },
     "actions": {
       "runNow": "Run Now",
-      "pasteToTerminal": "Paste to Terminal",
+      "pasteToCommandInput": "Paste to Command Input",
       "copyCommand": "Copy Command",
-      "pasteToQuickInput": "Paste to Quick Input",
       "edit": "Edit",
       "delete": "Delete",
       "sendToAllSessions": "Send to All Servers"
     },
     "notifications": {
-      "pastedToTerminal": "Pasted into the terminal input.",
-      "pastedToQuickInput": "Pasted into the quick input.",
+      "pastedToCommandInput": "Pasted into the command input.",
       "sentToAllSessions": "Command sent to {count} servers.",
       "noActiveSshSessions": "No active SSH sessions to send command to."
     }

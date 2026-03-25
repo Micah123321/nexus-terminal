@@ -1438,16 +1438,14 @@
     },
     "actions": {
       "runNow": "立即执行",
-      "pasteToTerminal": "粘贴到终端",
+      "pasteToCommandInput": "粘贴到命令输入框",
       "copyCommand": "复制命令",
-      "pasteToQuickInput": "粘贴到快捷输入框",
       "edit": "编辑",
       "delete": "删除",
       "sendToAllSessions": "发送到全部服务器"
     },
     "notifications": {
-      "pastedToTerminal": "已粘贴到终端输入框。",
-      "pastedToQuickInput": "已粘贴到快捷输入框。",
+      "pastedToCommandInput": "已粘贴到命令输入框。",
       "sentToAllSessions": "指令已发送到 {count} 台服务器。",
       "noActiveSshSessions": "没有活动的 SSH 会话可发送指令。"
     }

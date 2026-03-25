@@ -7,6 +7,8 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202603260156 | quickcommands-context-menu-polish | implementation | frontend | quickcommands-context-menu-polish#D001 | ✅完成 |
+| 202603260150 | workbench-file-folder-overview | implementation | frontend | - | ✅完成 |
 | 202603260041 | workbench-file-multi-root-explorer | implementation | frontend | - | ✅完成 |
 | 202603260042 | quickcommands-dynamic-variables | implementation | frontend | quickcommands-dynamic-variables#D001 | ✅完成 |
 | 202603260038 | quickcommands-context-menu-actions | implementation | frontend | quickcommands-context-menu-actions#D001 | ✅完成 |
@@ -32,6 +34,8 @@
 ## 按月归档
 
 ### 2026-03
+- [202603260156_quickcommands-context-menu-polish](./2026-03/202603260156_quickcommands-context-menu-polish/) - 修正快捷命令右键菜单透明背景，并将粘贴动作统一为“粘贴到命令输入框（不发送）”
+- [202603260150_workbench-file-folder-overview](./2026-03/202603260150_workbench-file-folder-overview/) - 将工作台文件区调整为多根目录常驻的文件夹总览，不再点击目录后切成单独文件表格
 - [202603260041_workbench-file-multi-root-explorer](./2026-03/202603260041_workbench-file-multi-root-explorer/) - 为工作台文件面板补齐左侧多根目录资源管理器，并允许收藏路径与当前路径同屏作为多个根目录展开浏览
 - [202603260042_quickcommands-dynamic-variables](./2026-03/202603260042_quickcommands-dynamic-variables/) - 为快捷指令编辑弹窗补充动态变量清单、一键插入，并统一列表执行与弹窗执行的动态变量解析
 - [202603260038_quickcommands-context-menu-actions](./2026-03/202603260038_quickcommands-context-menu-actions/) - 为快捷命令列表补齐图标化右键菜单，并区分立即执行、粘贴到终端输入框和粘贴到快捷输入框
