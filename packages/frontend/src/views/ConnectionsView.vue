@@ -4,8 +4,10 @@ import AddConnectionForm from '../components/AddConnectionForm.vue';
 import BatchEditConnectionForm from '../components/BatchEditConnectionForm.vue';
 import LoginCredentialManagementModal from '../components/LoginCredentialManagementModal.vue';
 import { useConnectionsStore } from '../stores/connections.store';
+import { useProxiesStore } from '../stores/proxies.store';
 import { useSessionStore } from '../stores/session.store';
 import { useTagsStore } from '../stores/tags.store';
+import { useLoginCredentialsStore } from '../stores/loginCredentials.store';
 import type { TagInfo } from '../stores/tags.store';
 import type { SortField, SortOrder } from '../stores/settings.store';
 import { useI18n } from 'vue-i18n';
@@ -45,11 +47,15 @@ const { t, locale } = useI18n();
 const { showConfirmDialog } = useConfirmDialog();
 const { showAlertDialog } = useAlertDialog();
 const connectionsStore = useConnectionsStore();
+const proxiesStore = useProxiesStore();
 const sessionStore = useSessionStore();
 const tagsStore = useTagsStore();
+const loginCredentialsStore = useLoginCredentialsStore();
 
 const { connections, isLoading: isLoadingConnections } = storeToRefs(connectionsStore);
 const { tags } = storeToRefs(tagsStore);
+const { proxies } = storeToRefs(proxiesStore);
+const { loginCredentials } = storeToRefs(loginCredentialsStore);
 
 const LS_SORT_BY_KEY = 'connections_view_sort_by';
 const LS_SORT_ORDER_KEY = 'connections_view_sort_order';
@@ -97,7 +103,6 @@ const selectedConnectionIdsForBatch = ref<Set<number>>(new Set());
 const showBatchEditForm = ref(false);
 const isDeletingSelectedConnections = ref(false);
 const expandedTreeNodes = ref<Record<string, boolean>>({});
-const hoveredTreeNodeId = ref<ScopeId | null>(null);
 const draggingTreeNodeId = ref<ScopeId | null>(null);
 const dropTargetTreeNodeId = ref<ScopeId | null>(null);
 const treeDragNoticeVisible = ref(false);
@@ -156,6 +161,42 @@ const getConnectionTagNames = (conn: ConnectionInfo): string[] => {
   return conn.tag_ids
     .map((tagId) => tagLookup.value.get(tagId)?.name)
     .filter((tagName): tagName is string => Boolean(tagName));
+};
+
+const getConnectionCredentialDisplay = (conn: ConnectionInfo): string => {
+  if (conn.login_credential_id) {
+    const credential = loginCredentials.value.find((item) => item.id === conn.login_credential_id);
+    if (credential) {
+      return `${t('connections.form.savedLoginCredential', '登录凭证')}: ${credential.name}`;
+    }
+    return `${t('connections.form.savedLoginCredential', '登录凭证')}: #${conn.login_credential_id}`;
+  }
+
+  return `${conn.username}  ${conn.auth_method}  ${conn.port}`;
+};
+
+const getConnectionEndpointTitle = (conn: ConnectionInfo): string => {
+  return `${conn.username}@${conn.host}:${conn.port}`;
+};
+
+const getConnectionRouteDisplay = (conn: ConnectionInfo): string => {
+  if (conn.proxy_type === 'proxy' && conn.proxy_id) {
+    const proxy = proxies.value.find((item) => item.id === conn.proxy_id);
+    if (proxy) {
+      return `${t('connections.proxyType', '代理')}: ${proxy.name}`;
+    }
+    return `${t('connections.proxyType', '代理')}: #${conn.proxy_id}`;
+  }
+
+  if (conn.proxy_type === 'jump' && conn.jump_chain?.length) {
+    const jumpNames = conn.jump_chain.map((jumpConnectionId) => {
+      const jumpConnection = connections.value.find((item) => item.id === jumpConnectionId);
+      return jumpConnection?.name || jumpConnection?.host || `#${jumpConnectionId}`;
+    });
+    return `${t('connections.form.connectionModeJumpHost', '跳板机')}: ${jumpNames.join(' -> ')}`;
+  }
+
+  return t('connections.noProxy', '未使用代理');
 };
 
 const getTagPathSegments = (tagName: string): string[] => {
@@ -635,6 +676,8 @@ const ensureDataLoaded = async () => {
   }
 
   await tagsStore.fetchTags();
+  await proxiesStore.fetchProxies();
+  await loginCredentialsStore.fetchLoginCredentials();
 };
 
 onMounted(async () => {
@@ -718,18 +761,6 @@ const resetScopeSelection = () => {
 
 const clearTreeSearch = () => {
   treeSearchQuery.value = '';
-};
-
-const setHoveredTreeNode = (nodeId: ScopeId | null) => {
-  hoveredTreeNodeId.value = nodeId;
-};
-
-const toggleTreeNodeFromAction = (node: TagTreeNode) => {
-  if (!node.expandable) {
-    return;
-  }
-
-  toggleTreeNode(node.id);
 };
 
 const startTreeDrag = (node: TagTreeNode) => {
@@ -1193,14 +1224,12 @@ onBeforeUnmount(() => {
                     v-for="node in visibleTagTreeNodes"
                     :key="node.id"
                     :class="[
-                      'group w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
+                      'w-full flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
                       getTreeNodeRowClass(node),
                       node.count === 0 ? 'opacity-55' : ''
                     ]"
                     :style="{ paddingLeft: `${0.75 + node.level * 1.05}rem` }"
                     draggable="true"
-                    @mouseenter="setHoveredTreeNode(node.id)"
-                    @mouseleave="setHoveredTreeNode(null)"
                     @dragstart="startTreeDrag(node)"
                     @dragenter.prevent="updateTreeDropTarget(node)"
                     @dragover.prevent
@@ -1229,36 +1258,6 @@ onBeforeUnmount(() => {
                     >
                       {{ node.count }}
                     </span>
-
-                    <div
-                      :class="[
-                        'flex items-center gap-1 flex-shrink-0 transition-opacity duration-150',
-                        hoveredTreeNodeId === node.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      ]"
-                    >
-                      <button
-                        v-if="node.expandable"
-                        @click.stop="toggleTreeNodeFromAction(node)"
-                        class="w-7 h-7 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center justify-center"
-                        :title="(expandedTreeNodes[node.id] ?? true) ? t('common.collapse', '收起') : t('common.expand', '展开')"
-                      >
-                        <i :class="['fas text-[11px]', (expandedTreeNodes[node.id] ?? true) ? 'fa-compress-alt' : 'fa-expand-alt']"></i>
-                      </button>
-                      <button
-                        @click.stop="selectScope(node.id)"
-                        class="w-7 h-7 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center justify-center"
-                        :title="t('connections.scopePinAction', '定位到此范围')"
-                      >
-                        <i class="fas fa-crosshairs text-[11px]"></i>
-                      </button>
-                      <button
-                        @mousedown.stop
-                        class="w-7 h-7 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center justify-center cursor-grab active:cursor-grabbing"
-                        :title="t('connections.scopeDragAction', '拖拽重排（预留）')"
-                      >
-                        <i class="fas fa-grip-lines text-[11px]"></i>
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -1483,9 +1482,7 @@ onBeforeUnmount(() => {
                           </h3>
                         </div>
                         <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-secondary">
-                          <span>{{ conn.username }}</span>
-                          <span>{{ conn.auth_method }}</span>
-                          <span>{{ conn.port }}</span>
+                          <span>{{ getConnectionCredentialDisplay(conn) }}</span>
                           <span>{{ t('connections.createdAt', '创建于') }} {{ formatRelativeTime(conn.created_at) }}</span>
                         </div>
                       </div>
@@ -1495,11 +1492,11 @@ onBeforeUnmount(() => {
                       <div class="text-sm font-medium text-foreground truncate" :title="conn.host">
                         {{ conn.host }}
                       </div>
-                      <div class="mt-2 text-sm text-text-secondary truncate" :title="`${conn.username}@${conn.host}:${conn.port}`">
+                      <div class="mt-2 text-sm text-text-secondary truncate" :title="getConnectionEndpointTitle(conn)">
                         {{ conn.username }}@{{ conn.host }}:{{ conn.port }}
                       </div>
                       <div class="mt-2 text-xs text-text-secondary">
-                        {{ conn.proxy_type ? `${t('connections.proxyType', '代理')}: ${conn.proxy_type}` : t('connections.noProxy', '未使用代理') }}
+                        {{ getConnectionRouteDisplay(conn) }}
                       </div>
                     </div>
 

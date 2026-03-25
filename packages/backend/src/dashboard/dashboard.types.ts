@@ -35,11 +35,31 @@ export interface DashboardActionBreakdownItem {
     count: number;
 }
 
-export interface DashboardSummary {
+export interface DashboardCurrentUserLiveMetrics {
+    activeSshSessions: number;
+    suspendedSessions: number;
+}
+
+export interface DashboardSystemLiveMetrics {
+    activeSshSessions: number;
+    suspendedSessions: number;
+    statusStreams: number;
+}
+
+export interface DashboardLiveMetrics {
+    currentUser: DashboardCurrentUserLiveMetrics;
+    system: DashboardSystemLiveMetrics;
+}
+
+export interface DashboardStaticSummary {
     totals: DashboardTotals;
     sshOutcomes24h: DashboardSshOutcomes24h;
     connectionTypes: DashboardCountByType[];
     actionBreakdown7d: DashboardActionBreakdownItem[];
     activityTrend7d: DashboardActivityTrendPoint[];
     topConnections: DashboardTopConnection[];
+}
+
+export interface DashboardSummary extends DashboardStaticSummary {
+    liveMetrics: DashboardLiveMetrics;
 }

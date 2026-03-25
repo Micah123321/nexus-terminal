@@ -3,7 +3,7 @@ import type {
     DashboardActionBreakdownItem,
     DashboardActivityTrendPoint,
     DashboardCountByType,
-    DashboardSummary,
+    DashboardStaticSummary,
     DashboardTopConnection,
 } from './dashboard.types';
 import type { AuditLogActionType } from '../types/audit.types';
@@ -75,7 +75,7 @@ const safeParseAuditDetails = (raw: string | null): ParsedAuditDetails | null =>
     }
 };
 
-export const getDashboardSummary = async (): Promise<DashboardSummary> => {
+export const getDashboardSummary = async (): Promise<DashboardStaticSummary> => {
     const db = await getDbInstance();
     const now = Math.floor(Date.now() / 1000);
     const since7d = now - (DASHBOARD_WINDOW_DAYS - 1) * DAY_IN_SECONDS;

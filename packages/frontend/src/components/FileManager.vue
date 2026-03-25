@@ -3,12 +3,13 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, watchEffect
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
-import { createSftpActionsManager, type WebSocketDependencies } from '../composables/useSftpActions';
+import { createSftpActionsManager, type WebSocketDependencies, type FileTreeNode } from '../composables/useSftpActions';
 import { useFileUploader } from '../composables/useFileUploader';
 import { useFileEditorStore, type FileInfo } from '../stores/fileEditor.store';
 import { useSessionStore } from '../stores/session.store';
 import { useSettingsStore } from '../stores/settings.store';
 import { useFocusSwitcherStore } from '../stores/focusSwitcher.store';
+import { useFavoritePathsStore, type FavoritePathItem } from '../stores/favoritePaths.store';
 import { useFileManagerContextMenu, type ClipboardState, type CompressFormat } from '../composables/file-manager/useFileManagerContextMenu';
 import { useFileManagerSelection } from '../composables/file-manager/useFileManagerSelection';
 import { useFileManagerDragAndDrop } from '../composables/file-manager/useFileManagerDragAndDrop';
@@ -25,6 +26,30 @@ import { useUiNotificationsStore } from '../stores/uiNotifications.store';
 
 
 type SftpManagerInstance = ReturnType<typeof createSftpActionsManager>;
+
+type ExplorerRootSource = 'favorite' | 'current';
+
+interface ExplorerRootItem {
+  id: string;
+  path: string;
+  label: string;
+  description: string;
+  source: ExplorerRootSource;
+}
+
+interface ExplorerTreeRow {
+  id: string;
+  path: string;
+  name: string;
+  description?: string;
+  depth: number;
+  isDirectory: boolean;
+  isRoot: boolean;
+  loaded: boolean;
+  expanded: boolean;
+  source: ExplorerRootSource | 'tree';
+  item: FileListItem;
+}
 
 
 // --- Props ---
@@ -58,6 +83,7 @@ const props = defineProps({
 const { t } = useI18n();
 const route = useRoute(); // Keep for download URL generation for now
 const sessionStore = useSessionStore(); // 实例化 Session Store
+const favoritePathsStore = useFavoritePathsStore();
 
 // --- 获取并存储 SFTP 管理器实例 ---
 // 使用 shallowRef 存储管理器实例，以便在 sessionId 变化时切换
@@ -113,6 +139,7 @@ const {
   showPopupFileEditorBoolean, // +++ 获取弹窗设置状态 +++
   fileManagerShowDeleteConfirmationBoolean, // +++ 获取删除确认设置状态 +++
 } = storeToRefs(settingsStore); // 使用 storeToRefs 保持响应性
+const { favoritePaths } = storeToRefs(favoritePathsStore);
  
  
 
@@ -133,6 +160,7 @@ const dropOverlayRef = ref<HTMLDivElement | null>(null); // +++ 拖拽蒙版引�
 // +++ Favorite Paths Modal State +++
 const showFavoritePathsModal = ref(false);
 const favoritePathsButtonRef = ref<HTMLButtonElement | null>(null); // Ref for the trigger button
+const explorerExpandedPaths = ref<Record<string, boolean>>({});
 
 // +++ Path History Refs +++
 const showPathHistoryDropdown = ref(false);
@@ -189,6 +217,173 @@ const formatMode = (mode: number): string => {
     str += (perm & 0o004) ? 'r' : '-'; str += (perm & 0o002) ? 'w' : '-'; str += (perm & 0o001) ? 'x' : '-';
     return str;
 };
+
+const getPathName = (path: string): string => {
+  if (!path || path === '/') {
+    return '/';
+  }
+
+  const normalized = path.endsWith('/') ? path.slice(0, -1) : path;
+  return normalized.substring(normalized.lastIndexOf('/') + 1) || normalized;
+};
+
+const sortTreeItems = (items: FileListItem[]): FileListItem[] => {
+  return [...items].sort((left, right) => {
+    if (left.attrs.isDirectory && !right.attrs.isDirectory) return -1;
+    if (!left.attrs.isDirectory && right.attrs.isDirectory) return 1;
+    return left.filename.localeCompare(right.filename);
+  });
+};
+
+const findTreeNodeByPath = (path: string): FileTreeNode | null => {
+  const root = currentSftpManager.value?.fileTree;
+  if (!root) {
+    return null;
+  }
+
+  if (path === '/') {
+    return root;
+  }
+
+  const segments = path.split('/').filter(Boolean);
+  let currentNode: FileTreeNode | null = root;
+
+  for (const segment of segments) {
+    if (!currentNode?.children) {
+      return null;
+    }
+
+    currentNode = currentNode.children.find((child) => child.filename === segment) ?? null;
+  }
+
+  return currentNode;
+};
+
+const toFileListItem = (node: FileTreeNode): FileListItem => ({
+  filename: node.filename,
+  longname: node.longname,
+  attrs: node.attrs,
+});
+
+const openFileInWorkspace = (filePath: string, filename: string) => {
+  const fileInfo: FileInfo = { name: filename, fullPath: filePath };
+
+  if (settingsStore.showPopupFileEditorBoolean) {
+    fileEditorStore.triggerPopup(filePath, props.sessionId);
+  }
+
+  if (shareFileEditorTabsBoolean.value) {
+    fileEditorStore.openFile(filePath, props.sessionId, props.instanceId);
+  } else {
+    sessionStore.openFileInSession(props.sessionId, fileInfo);
+  }
+};
+
+const explorerRoots = computed<ExplorerRootItem[]>(() => {
+  const roots = new Map<string, ExplorerRootItem>();
+
+  favoritePaths.value.forEach((favorite: FavoritePathItem) => {
+    const path = favorite.path?.trim();
+    if (!path) {
+      return;
+    }
+
+    roots.set(path, {
+      id: `favorite:${favorite.id}`,
+      path,
+      label: favorite.name?.trim() || getPathName(path),
+      description: path,
+      source: 'favorite',
+    });
+  });
+
+  const currentPath = currentSftpManager.value?.currentPath.value?.trim();
+  if (currentPath && !roots.has(currentPath)) {
+    roots.set(currentPath, {
+      id: `current:${currentPath}`,
+      path: currentPath,
+      label: getPathName(currentPath),
+      description: currentPath,
+      source: 'current',
+    });
+  }
+
+  return Array.from(roots.values());
+});
+
+const explorerTreeRows = computed<ExplorerTreeRow[]>(() => {
+  const rows: ExplorerTreeRow[] = [];
+
+  const appendNodeRows = (basePath: string, nodes: FileListItem[], depth: number) => {
+    sortTreeItems(nodes).forEach((item) => {
+      const itemPath = currentSftpManager.value?.joinPath(basePath, item.filename) ?? `${basePath}/${item.filename}`;
+      const treeNode = findTreeNodeByPath(itemPath);
+      const expanded = Boolean(explorerExpandedPaths.value[itemPath]);
+      const loaded = item.attrs.isDirectory ? Boolean(treeNode?.childrenLoaded) : true;
+
+      rows.push({
+        id: `tree:${itemPath}`,
+        path: itemPath,
+        name: item.filename,
+        depth,
+        isDirectory: item.attrs.isDirectory,
+        isRoot: false,
+        loaded,
+        expanded,
+        source: 'tree',
+        item,
+      });
+
+      if (item.attrs.isDirectory && expanded && treeNode?.children?.length) {
+        appendNodeRows(itemPath, treeNode.children.map(toFileListItem), depth + 1);
+      }
+    });
+  };
+
+  explorerRoots.value.forEach((root) => {
+    const node = findTreeNodeByPath(root.path);
+    const rootItem: FileListItem = node
+      ? toFileListItem(node)
+      : {
+          filename: getPathName(root.path),
+          longname: root.path,
+          attrs: {
+            isDirectory: true,
+            isFile: false,
+            isSymbolicLink: false,
+            size: 0,
+            uid: 0,
+            gid: 0,
+            mode: 0,
+            atime: 0,
+            mtime: 0,
+          },
+        };
+
+    const expanded = explorerExpandedPaths.value[root.path] ?? true;
+    const loaded = Boolean(node?.childrenLoaded);
+
+    rows.push({
+      id: root.id,
+      path: root.path,
+      name: root.label,
+      description: root.description,
+      depth: 0,
+      isDirectory: true,
+      isRoot: true,
+      loaded,
+      expanded,
+      source: root.source,
+      item: rootItem,
+    });
+
+    if (expanded && node?.children?.length) {
+      appendNodeRows(root.path, node.children.map(toFileListItem), 1);
+    }
+  });
+
+  return rows;
+});
 
 const getFileIconClassBase = (filename: string): string => {
   const lowerFilename = filename.toLowerCase();
@@ -395,7 +590,6 @@ const handleItemAction = (item: FileListItem) => {
         currentSftpManager.value.loadDirectory(realPath);
       } else if (targetType === 'file') {
         const targetFilename = realPath.substring(realPath.lastIndexOf('/') + 1) || originalLinkItem.filename; // Get filename from realPath
-        const fileInfo: FileInfo = { name: targetFilename, fullPath: realPath };
 
         // Preserve mobile multi-select behavior for the original link item
         if (props.isMobile && isMultiSelectMode.value) {
@@ -407,27 +601,12 @@ const handleItemAction = (item: FileListItem) => {
           return;
         }
 
-        if (settingsStore.showPopupFileEditorBoolean) {
-          fileEditorStore.triggerPopup(realPath, props.sessionId);
-        }
-        if (shareFileEditorTabsBoolean.value) {
-          fileEditorStore.openFile(realPath, props.sessionId, props.instanceId);
-        } else {
-          sessionStore.openFileInSession(props.sessionId, fileInfo);
-        }
+        openFileInWorkspace(realPath, targetFilename);
       } else { // targetType is 'unknown' or not provided as expected
         console.warn(`[FileManager ${props.sessionId}-${props.instanceId}] Symlink target '${realPath}' has an unknown type from server ('${targetType}'). Defaulting to open as file.`);
         // Fallback: attempt to open as file, or display an error
         const targetFilename = realPath.substring(realPath.lastIndexOf('/') + 1) || originalLinkItem.filename;
-        const fileInfo: FileInfo = { name: targetFilename, fullPath: realPath };
-        if (settingsStore.showPopupFileEditorBoolean) {
-          fileEditorStore.triggerPopup(realPath, props.sessionId);
-        }
-        if (shareFileEditorTabsBoolean.value) {
-          fileEditorStore.openFile(realPath, props.sessionId, props.instanceId);
-        } else {
-          sessionStore.openFileInSession(props.sessionId, fileInfo);
-        }
+        openFileInWorkspace(realPath, targetFilename);
       }
     };
 
@@ -501,17 +680,7 @@ const handleItemAction = (item: FileListItem) => {
       return;
     }
     const filePath = itemPath; // itemPath is already calculated
-    const fileInfo: FileInfo = { name: item.filename, fullPath: filePath };
-
-    if (settingsStore.showPopupFileEditorBoolean) {
-      fileEditorStore.triggerPopup(filePath, props.sessionId);
-    }
-
-    if (shareFileEditorTabsBoolean.value) {
-      fileEditorStore.openFile(filePath, props.sessionId, props.instanceId);
-    } else {
-      sessionStore.openFileInSession(props.sessionId, fileInfo);
-    }
+    openFileInWorkspace(filePath, item.filename);
   }
 };
 
@@ -1643,12 +1812,70 @@ const handleOpenEditorClick = () => {
    console.log(`[FileManager ${props.sessionId}-${props.instanceId}] Toggled FavoritePathsModal. Visible: ${showFavoritePathsModal.value}`);
  };
  
- const handleNavigateToPathFromFavorites = (path: string) => {
-   if (currentSftpManager.value) {
+const handleNavigateToPathFromFavorites = (path: string) => {
+  if (currentSftpManager.value) {
      currentSftpManager.value.loadDirectory(path);
-   }
-   showFavoritePathsModal.value = false; // Close modal after navigation
- };
+     explorerExpandedPaths.value[path] = true;
+  }
+  showFavoritePathsModal.value = false; // Close modal after navigation
+};
+
+const handleExplorerToggle = (row: ExplorerTreeRow) => {
+  if (!row.isDirectory) {
+    return;
+  }
+
+  const nextExpanded = !(explorerExpandedPaths.value[row.path] ?? row.expanded);
+  explorerExpandedPaths.value[row.path] = nextExpanded;
+
+  if (nextExpanded && !row.loaded && currentSftpManager.value) {
+    currentSftpManager.value.loadDirectory(row.path);
+    return;
+  }
+
+  if (currentSftpManager.value?.currentPath.value !== row.path) {
+    currentSftpManager.value?.loadDirectory(row.path);
+  }
+};
+
+const handleExplorerOpen = (row: ExplorerTreeRow) => {
+  if (row.isDirectory) {
+    explorerExpandedPaths.value[row.path] = true;
+    currentSftpManager.value?.loadDirectory(row.path);
+    return;
+  }
+
+  openFileInWorkspace(row.path, row.name);
+};
+
+const isExplorerRowActive = (row: ExplorerTreeRow) => {
+  return currentSftpManager.value?.currentPath.value === row.path;
+};
+
+const isExplorerRowRelated = (row: ExplorerTreeRow) => {
+  const currentPath = currentSftpManager.value?.currentPath.value;
+  if (!currentPath) {
+    return false;
+  }
+
+  if (row.path === '/') {
+    return true;
+  }
+
+  return currentPath === row.path || currentPath.startsWith(`${row.path}/`);
+};
+
+watch(
+  explorerRoots,
+  (roots) => {
+    roots.forEach((root) => {
+      if (explorerExpandedPaths.value[root.path] === undefined) {
+        explorerExpandedPaths.value[root.path] = true;
+      }
+    });
+  },
+  { immediate: true },
+);
  </script>
 
 <template>
@@ -1833,22 +2060,95 @@ const handleOpenEditorClick = () => {
          </div>
      </div>
 
+    <div class="flex flex-grow min-h-0 overflow-hidden border-t border-border/60">
+      <aside class="w-[260px] flex-shrink-0 border-r border-border/60 bg-header/40 flex flex-col min-h-0">
+        <div class="px-3 py-3 border-b border-border/60">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <div class="text-[11px] uppercase tracking-[0.18em] text-text-secondary">{{ t('fileManager.explorer.title', '目录资源管理器') }}</div>
+              <div class="mt-1 text-xs text-text-secondary">{{ explorerRoots.length }} {{ t('fileManager.explorer.rootCount', '个根目录') }}</div>
+            </div>
+            <button
+              @click="toggleFavoritePathsModal"
+              class="w-8 h-8 rounded-lg border border-border bg-background text-text-secondary hover:bg-header hover:text-foreground transition-colors"
+              :title="t('favoritePaths.addNew', 'Add new favorite path')"
+            >
+              <i class="fas fa-plus text-xs"></i>
+            </button>
+          </div>
+        </div>
 
-    <!-- File List Container -->
-    <div
-      ref="fileListContainerRef"
-      class="flex-grow overflow-y-auto relative outline-none"
-      @dragenter.prevent="handleDragEnter"
-      @dragover.prevent="handleDragOver"
-      @dragleave.prevent="handleDragLeave"
-      @drop.prevent="handleDrop"
-      @click="fileListContainerRef?.focus()"
-      @keydown="handleKeydown"
-      @wheel="handleWheel"
-      @contextmenu.prevent="showContextMenu($event)"
-      tabindex="0"
-      :style="{ '--row-size-multiplier': rowSizeMultiplier }"
-    >
+        <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+          <div v-if="explorerRoots.length === 0" class="px-3 py-6 text-xs text-text-secondary text-center">
+            {{ t('fileManager.explorer.noRoots', '暂无目录根，请先添加收藏路径或连接后浏览当前目录。') }}
+          </div>
+
+          <div v-else class="space-y-1">
+            <div
+              v-for="row in explorerTreeRows"
+              :key="row.id"
+              :class="[
+                'group flex items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors cursor-pointer',
+                isExplorerRowActive(row)
+                  ? 'bg-primary text-white border-primary shadow-sm'
+                  : isExplorerRowRelated(row)
+                    ? 'border-primary/20 bg-primary/8 text-foreground'
+                    : 'border-transparent text-text-secondary hover:bg-background hover:text-foreground'
+              ]"
+              :style="{ paddingLeft: `${0.6 + row.depth * 0.85}rem` }"
+              @click="handleExplorerOpen(row)"
+            >
+              <button
+                v-if="row.isDirectory"
+                @click.stop="handleExplorerToggle(row)"
+                class="w-4 h-4 flex items-center justify-center flex-shrink-0 text-[10px]"
+              >
+                <i :class="row.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'"></i>
+              </button>
+              <span v-else class="w-4 h-4 flex items-center justify-center flex-shrink-0 text-[9px] opacity-60">
+                <i class="fas fa-circle"></i>
+              </span>
+
+              <i
+                :class="[
+                  row.isDirectory
+                    ? (row.isRoot ? 'fas fa-folder-tree' : 'fas fa-folder')
+                    : getFileIconClassBase(row.name),
+                  'w-4 text-center flex-shrink-0',
+                  isExplorerRowActive(row) ? 'text-white' : (row.isDirectory ? 'text-primary' : 'text-text-secondary')
+                ]"
+              ></i>
+
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium" :title="row.description || row.path">{{ row.name }}</div>
+                <div
+                  v-if="row.isRoot"
+                  class="truncate text-[10px]"
+                  :class="isExplorerRowActive(row) ? 'text-white/75' : 'text-text-secondary/80'"
+                >
+                  {{ row.description }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- File List Container -->
+      <div
+        ref="fileListContainerRef"
+        class="flex-grow overflow-y-auto relative outline-none"
+        @dragenter.prevent="handleDragEnter"
+        @dragover.prevent="handleDragOver"
+        @dragleave.prevent="handleDragLeave"
+        @drop.prevent="handleDrop"
+        @click="fileListContainerRef?.focus()"
+        @keydown="handleKeydown"
+        @wheel="handleWheel"
+        @contextmenu.prevent="showContextMenu($event)"
+        tabindex="0"
+        :style="{ '--row-size-multiplier': rowSizeMultiplier }"
+      >
         <!-- 外部文件拖拽蒙版 -->
         <div
           v-if="showExternalDropOverlay"
@@ -2006,7 +2306,8 @@ const handleOpenEditorClick = () => {
           </tbody>
         </table>
         <!-- Removed separate loading/empty divs -->
-     </div>
+      </div>
+    </div>
 
      <!-- 使用 FileUploadPopup 组件 -->
      <FileUploadPopup :uploads="uploads" @cancel-upload="cancelUpload" />

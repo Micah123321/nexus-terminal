@@ -211,6 +211,28 @@ export class SshSuspendService extends EventEmitter {
     return sessionsInfo;
   }
 
+  getSessionMetrics(userId?: number): {
+    totalSuspendedSessions: number;
+    currentUserSuspendedSessions: number;
+  } {
+    let totalSuspendedSessions = 0;
+    let currentUserSuspendedSessions = 0;
+
+    for (const [ownerUserId, sessions] of this.suspendedSessions.entries()) {
+      const sessionCount = sessions.size;
+      totalSuspendedSessions += sessionCount;
+
+      if (typeof userId === 'number' && ownerUserId === userId) {
+        currentUserSuspendedSessions += sessionCount;
+      }
+    }
+
+    return {
+      totalSuspendedSessions,
+      currentUserSuspendedSessions,
+    };
+  }
+
   /**
    * 恢复指定的挂起会话。
    * @param userId 用户ID。

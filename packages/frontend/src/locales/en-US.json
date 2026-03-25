@@ -389,8 +389,6 @@
     "scopeSearchMode": "Matched paths are expanded",
     "scopeTreeNoMatch": "No matching tree nodes",
     "scopeDragPlaceholder": "Drag-reorder is reserved for now; only target placeholder feedback is shown.",
-    "scopePinAction": "Focus this scope",
-    "scopeDragAction": "Drag to reorder (reserved)",
     "untaggedGroup": "Untagged",
     "noUntaggedConnections": "No untagged connections found."
   },
@@ -1379,16 +1377,73 @@
       "addVariable": "+ Add Variable",
       "execute": "Execute",
       "warningUndefinedVariables": "Warning: Undefined variables in command template: {variables}",
-      "errorNoActiveSession": "No active SSH session to execute the command."
+      "errorNoActiveSession": "No active SSH session to execute the command.",
+      "dynamicVariables": {
+        "title": "Dynamic Variables",
+        "description": "Click a variable below to insert it into the command. It will be resolved automatically at execution time.",
+        "exampleLabel": "Example",
+        "groups": {
+          "datetime": "Date & Time",
+          "identity": "Identifiers",
+          "system": "System"
+        },
+        "items": {
+          "date": {
+            "label": "date",
+            "description": "Current date. Supports custom formats such as YYYY-MM-DD, YYYYMMDD, and MM/DD."
+          },
+          "time": {
+            "label": "time",
+            "description": "Current time. Supports custom formats such as HH:mm:ss, HHmmss, and HH:mm."
+          },
+          "timestamp": {
+            "label": "timestamp",
+            "description": "Unix timestamp in seconds."
+          },
+          "week": {
+            "label": "week",
+            "description": "Current ISO week number in the year."
+          },
+          "uuid": {
+            "label": "uuid",
+            "description": "Generate a unique identifier."
+          },
+          "random": {
+            "label": "random",
+            "description": "Generate a random string. Use forms like random:8 to control the length."
+          },
+          "clipboard": {
+            "label": "clipboard",
+            "description": "Read text from the current clipboard."
+          },
+          "password": {
+            "label": "password",
+            "description": "Try to read the login password for the current active SSH session."
+          }
+        },
+        "warnings": {
+          "clipboardUnavailable": "Unable to read clipboard text. An empty string was used instead.",
+          "passwordUnavailable": "No login password is available for the current active connection. An empty string was used instead.",
+          "unknownVariable": "Unrecognized dynamic variable: {variable}"
+        }
+      }
     },
     "untagged": "Untagged",
     "tags": {
       "clickToEditTag": "Click to edit tag name"
     },
     "actions": {
+      "runNow": "Run Now",
+      "pasteToTerminal": "Paste to Terminal",
+      "copyCommand": "Copy Command",
+      "pasteToQuickInput": "Paste to Quick Input",
+      "edit": "Edit",
+      "delete": "Delete",
       "sendToAllSessions": "Send to All Servers"
     },
     "notifications": {
+      "pastedToTerminal": "Pasted into the terminal input.",
+      "pastedToQuickInput": "Pasted into the quick input.",
       "sentToAllSessions": "Command sent to {count} servers.",
       "noActiveSshSessions": "No active SSH sessions to send command to."
     }
@@ -1518,6 +1573,23 @@
       "auditLogs": "All retained audit events in the current database",
       "sshSuccess24h": "Successful SSH connection events over the last 24 hours",
       "sshFailure24h": "Failed SSH or shell-open events over the last 24 hours"
+    },
+    "liveMetrics": {
+      "title": "Live Session Metrics",
+      "description": "A mixed view of your current sessions and the whole system runtime state.",
+      "currentUser": {
+        "title": "My Sessions",
+        "description": "Sessions tied to the current signed-in user."
+      },
+      "system": {
+        "title": "System Overview",
+        "description": "All live session signals currently tracked by the backend."
+      },
+      "labels": {
+        "activeSshSessions": "Active SSH Sessions",
+        "suspendedSessions": "Suspended Sessions",
+        "statusStreams": "Status Streams"
+      }
     },
     "charts": {
       "activityTrend7d": "Activity Trend (7 Days)",

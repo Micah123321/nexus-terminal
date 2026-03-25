@@ -18,10 +18,24 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 新增
+- **[frontend]**: 为工作台文件面板补齐左侧多根目录资源管理器，支持收藏路径与当前路径同屏作为多个根目录展开浏览 — by yinjianm
+  - 方案: [202603260041_workbench-file-multi-root-explorer](archive/2026-03/202603260041_workbench-file-multi-root-explorer/)
+- **[frontend]**: 为快捷指令编辑弹窗补充动态变量清单与点击插入，并统一列表执行/弹窗执行的动态变量解析链路 — by yinjianm
+  - 方案: [202603260042_quickcommands-dynamic-variables](archive/2026-03/202603260042_quickcommands-dynamic-variables/)
+- **[frontend]**: 为快捷命令列表补齐图标化右键菜单，支持立即执行、粘贴到终端输入框、复制命令、粘贴到快捷输入框，并保留发送到全部服务器/编辑/删除动作 — by yinjianm
+  - 方案: [202603260038_quickcommands-context-menu-actions](archive/2026-03/202603260038_quickcommands-context-menu-actions/)
+- **[frontend]**: 为连接管理页新增独立“登录凭证”入口，并在新增连接/批量编辑中支持选择已保存凭证或继续直填账号密码/密钥 — by yinjianm
+  - 方案: [202603252354_login-credential-management](plan/202603252354_login-credential-management/)
+- **[backend]**: 新增 `login_credentials` 数据模型与 `/api/v1/login-credentials` 接口，并让连接创建、更新和测试支持引用已保存登录凭证 — by yinjianm
+  - 方案: [202603252354_login-credential-management](plan/202603252354_login-credential-management/)
 - **[frontend]**: 将首页仪表盘升级为统计卡片、趋势/分布图和活跃连接排行组成的管理驾驶舱 — by yinjianm
   - 方案: [202603252343_dashboard-management-cockpit](archive/2026-03/202603252343_dashboard-management-cockpit/)
 - **[backend]**: 新增 `/api/v1/dashboard/summary` 聚合接口，统一输出首页所需的连接、审计和 SSH 统计摘要 — by yinjianm
   - 方案: [202603252343_dashboard-management-cockpit](archive/2026-03/202603252343_dashboard-management-cockpit/)
+- **[frontend]**: 为首页 dashboard 增加“我的会话 / 系统总览”双视角实时指标面板，展示在线 SSH、挂起会话和状态监控流 — by yinjianm
+  - 方案: [202603260043_dashboard-live-session-metrics](archive/2026-03/202603260043_dashboard-live-session-metrics/)
+- **[backend]**: 扩展 `/api/v1/dashboard/summary`，组合 `clientStates` 与 `sshSuspendService` 返回当前用户和系统范围的实时会话指标 — by yinjianm
+  - 方案: [202603260043_dashboard-live-session-metrics](archive/2026-03/202603260043_dashboard-live-session-metrics/)
 - **[frontend]**: 将底部命令输入框升级为支持多行草稿与自动增高，并把发送快捷键改为 `Ctrl+Shift+Enter` — by yinjianm
   - 方案: [202603252340_command-input-multiline-shortcut](archive/2026-03/202603252340_command-input-multiline-shortcut/)
 - **[frontend]**: 将服务器状态中的内存与磁盘区域升级为卡片化监控视图，补齐环形内存占比、磁盘设备信息、读写速率与挂载表格展示 — by yinjianm

@@ -7,6 +7,9 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202603260041 | workbench-file-multi-root-explorer | implementation | frontend | - | ✅完成 |
+| 202603260042 | quickcommands-dynamic-variables | implementation | frontend | quickcommands-dynamic-variables#D001 | ✅完成 |
+| 202603260038 | quickcommands-context-menu-actions | implementation | frontend | quickcommands-context-menu-actions#D001 | ✅完成 |
 | 202603250317 | ghcr-docker-publish | implementation | workspace-root | ghcr-docker-publish#D001 | ✅完成 |
 | 202603250532 | quickcommands-theme-alignment | implementation | frontend | - | ✅完成 |
 | 202603250547 | terminal-tab-scroll-restore | implementation | frontend | - | ✅完成 |
@@ -21,6 +24,7 @@
 | 202603252336 | connections-tree-hover-drag-polish | implementation | frontend | - | ✅完成 |
 | 202603252340 | command-input-multiline-shortcut | implementation | frontend | command-input-multiline-shortcut#D001 | ✅完成 |
 | 202603252343 | dashboard-management-cockpit | implementation | frontend, backend | dashboard-management-cockpit#D001, dashboard-management-cockpit#D002 | ✅完成 |
+| 202603260043 | dashboard-live-session-metrics | implementation | frontend, backend | dashboard-live-session-metrics#D001, dashboard-live-session-metrics#D002 | ✅完成 |
 | 202603252229 | terminal-tab-group-visual | implementation | frontend | terminal-tab-group-visual#D001 | ✅完成 |
 | 202603252256 | workspace-monitor-terminal-polish | implementation | workspace-root | workspace-monitor-terminal-polish#D001 | ✅完成 |
 | 202603251200 | workspace-workbench-monitor | implementation | frontend, backend | workspace-workbench-monitor#D001 | ✅完成 |
@@ -28,6 +32,9 @@
 ## 按月归档
 
 ### 2026-03
+- [202603260041_workbench-file-multi-root-explorer](./2026-03/202603260041_workbench-file-multi-root-explorer/) - 为工作台文件面板补齐左侧多根目录资源管理器，并允许收藏路径与当前路径同屏作为多个根目录展开浏览
+- [202603260042_quickcommands-dynamic-variables](./2026-03/202603260042_quickcommands-dynamic-variables/) - 为快捷指令编辑弹窗补充动态变量清单、一键插入，并统一列表执行与弹窗执行的动态变量解析
+- [202603260038_quickcommands-context-menu-actions](./2026-03/202603260038_quickcommands-context-menu-actions/) - 为快捷命令列表补齐图标化右键菜单，并区分立即执行、粘贴到终端输入框和粘贴到快捷输入框
 - [202603250317_ghcr-docker-publish](./2026-03/202603250317_ghcr-docker-publish/) - 新增 GHCR 镜像发布 workflow 并切换 compose 镜像来源
 - [202603250532_quickcommands-theme-alignment](./2026-03/202603250532_quickcommands-theme-alignment/) - 统一快捷指令视图按钮主题适配，移除残留硬编码 hover 色值
 - [202603250547_terminal-tab-scroll-restore](./2026-03/202603250547_terminal-tab-scroll-restore/) - 修复终端标签切换后的贴底/历史滚动恢复逻辑
@@ -42,6 +49,7 @@
 - [202603252336_connections-tree-hover-drag-polish](./2026-03/202603252336_connections-tree-hover-drag-polish/) - 为连接管理页补树节点 hover 工具、分隔标题行和拖拽重排占位反馈
 - [202603252340_command-input-multiline-shortcut](./2026-03/202603252340_command-input-multiline-shortcut/) - 将命令输入框改为多行自动增高，并改用 Ctrl+Shift+Enter 发送
 - [202603252343_dashboard-management-cockpit](./2026-03/202603252343_dashboard-management-cockpit/) - 将首页升级为统计卡片、趋势/分布图和活跃连接排行组成的 dashboard 驾驶舱，并补充 summary 聚合接口
+- [202603260043_dashboard-live-session-metrics](./2026-03/202603260043_dashboard-live-session-metrics/) - 为首页 dashboard 增加当前用户与系统总览双视角的在线 SSH / 挂起会话与状态监控流指标
 - [202603252229_terminal-tab-group-visual](./2026-03/202603252229_terminal-tab-group-visual/) - 将顶部终端标签栏改成更明显的服务器组头与终端子标签
 - [202603252256_workspace-monitor-terminal-polish](./2026-03/202603252256_workspace-monitor-terminal-polish/) - 重新核对状态监控与终端标签剩余改动，并修正知识库归档索引与活跃方案状态
 - [202603251200_workspace-workbench-monitor](./2026-03/202603251200_workspace-workbench-monitor/) - `/workspace` 改为三栏 Workbench 布局，并新增开机累计流量监控

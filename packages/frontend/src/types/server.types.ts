@@ -163,6 +163,22 @@ export interface DashboardActionBreakdownItem {
     count: number;
 }
 
+export interface DashboardCurrentUserLiveMetrics {
+    activeSshSessions: number;
+    suspendedSessions: number;
+}
+
+export interface DashboardSystemLiveMetrics {
+    activeSshSessions: number;
+    suspendedSessions: number;
+    statusStreams: number;
+}
+
+export interface DashboardLiveMetrics {
+    currentUser: DashboardCurrentUserLiveMetrics;
+    system: DashboardSystemLiveMetrics;
+}
+
 export interface DashboardSummary {
     totals: DashboardTotals;
     sshOutcomes24h: DashboardSshOutcomes24h;
@@ -170,4 +186,5 @@ export interface DashboardSummary {
     actionBreakdown7d: DashboardActionBreakdownItem[];
     activityTrend7d: DashboardActivityTrendPoint[];
     topConnections: DashboardTopConnection[];
+    liveMetrics: DashboardLiveMetrics;
 }

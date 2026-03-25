@@ -291,8 +291,6 @@
         "scopeSearchMode": "一致したパスを自動展開中",
         "scopeTreeNoMatch": "一致するツリーノードはありません",
         "scopeDragPlaceholder": "ドラッグ並べ替えは予約中で、現在は配置先のプレースホルダーのみ表示します。",
-        "scopePinAction": "この範囲にフォーカス",
-        "scopeDragAction": "ドラッグで並べ替え（予約）",
         "table": {
             "actions": "アクション",
             "authMethod": "認証方法",
@@ -360,6 +358,23 @@
             "auditLogs": "現在のデータベースに保存されている監査イベント総数",
             "sshSuccess24h": "過去 24 時間に成功した SSH 接続イベント数",
             "sshFailure24h": "過去 24 時間に失敗した SSH 接続または Shell 起動イベント数"
+        },
+        "liveMetrics": {
+            "title": "ライブセッション指標",
+            "description": "現在のユーザー視点とシステム全体視点を同時に表示します。",
+            "currentUser": {
+                "title": "自分のセッション",
+                "description": "現在ログイン中のユーザーに紐づくオンライン / 中断セッションです。"
+            },
+            "system": {
+                "title": "システム概要",
+                "description": "バックエンドが現在追跡している全体のライブセッション信号です。"
+            },
+            "labels": {
+                "activeSshSessions": "稼働中の SSH セッション",
+                "suspendedSessions": "中断セッション",
+                "statusStreams": "状態監視ストリーム"
+            }
         },
         "charts": {
             "activityTrend7d": "直近 7 日のアクティビティ推移",
@@ -779,7 +794,56 @@
             "addVariable": "+ 変数を追加",
             "execute": "実行",
             "warningUndefinedVariables": "警告：コマンドテンプレートに未定義の変数があります: {variables}",
-            "errorNoActiveSession": "コマンドを実行するためのアクティブなSSHセッションがありません。"
+            "errorNoActiveSession": "コマンドを実行するためのアクティブなSSHセッションがありません。",
+            "dynamicVariables": {
+                "title": "動的変数",
+                "description": "下の変数をクリックするとコマンドへ挿入され、実行時に自動で展開されます。",
+                "exampleLabel": "例",
+                "groups": {
+                    "datetime": "日時",
+                    "identity": "識別子",
+                    "system": "システム"
+                },
+                "items": {
+                    "date": {
+                        "label": "date",
+                        "description": "現在の日付です。YYYY-MM-DD、YYYYMMDD、MM/DD などの書式に対応します。"
+                    },
+                    "time": {
+                        "label": "time",
+                        "description": "現在の時刻です。HH:mm:ss、HHmmss、HH:mm などの書式に対応します。"
+                    },
+                    "timestamp": {
+                        "label": "timestamp",
+                        "description": "Unix タイムスタンプ（秒）です。"
+                    },
+                    "week": {
+                        "label": "week",
+                        "description": "現在が年内の第何週かを返します。"
+                    },
+                    "uuid": {
+                        "label": "uuid",
+                        "description": "一意の識別子を生成します。"
+                    },
+                    "random": {
+                        "label": "random",
+                        "description": "ランダム文字列を生成します。random:8 のように長さを指定できます。"
+                    },
+                    "clipboard": {
+                        "label": "clipboard",
+                        "description": "現在のクリップボードのテキストを読み取ります。"
+                    },
+                    "password": {
+                        "label": "password",
+                        "description": "現在アクティブな SSH セッションに対応するログインパスワードの取得を試みます。"
+                    }
+                },
+                "warnings": {
+                    "clipboardUnavailable": "クリップボードの内容を読み取れなかったため、空文字として扱いました。",
+                    "passwordUnavailable": "現在のアクティブ接続に利用可能なログインパスワードがないため、空文字として扱いました。",
+                    "unknownVariable": "未対応の動的変数があります: {variable}"
+                }
+            }
         },
         "untagged": "タグなし",
         "tags": {
@@ -790,9 +854,17 @@
         "sortByUsage": "使用頻度",
         "usageCount": "使用回数",
         "actions": {
+          "runNow": "今すぐ実行",
+          "pasteToTerminal": "ターミナルに貼り付け",
+          "copyCommand": "コマンドをコピー",
+          "pasteToQuickInput": "クイック入力欄に貼り付け",
+          "edit": "編集",
+          "delete": "削除",
           "sendToAllSessions": "すべてのサーバーに送信"
         },
         "notifications": {
+          "pastedToTerminal": "ターミナル入力欄に貼り付けました。",
+          "pastedToQuickInput": "クイック入力欄に貼り付けました。",
           "sentToAllSessions": "コマンドは {count} 台のサーバーに送信されました。",
           "noActiveSshSessions": "コマンドを送信するアクティブな SSH セッションはありません。"
         }

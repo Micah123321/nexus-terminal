@@ -216,10 +216,59 @@
       <ul class="list-none p-0 m-0">
         <li
           v-if="quickCommandContextTargetCommand"
-          class="group px-4 py-1.5 cursor-pointer flex items-center text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
+          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
+          @click="handleQuickCommandMenuAction('runNow', quickCommandContextTargetCommand!)"
+        >
+          <i class="fas fa-play-circle w-4 text-center text-text-secondary group-hover:text-primary"></i>
+          <span>{{ t('quickCommands.actions.runNow', '立即执行') }}</span>
+        </li>
+        <li
+          v-if="quickCommandContextTargetCommand"
+          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
+          @click="handleQuickCommandMenuAction('pasteToTerminal', quickCommandContextTargetCommand!)"
+        >
+          <i class="fas fa-terminal w-4 text-center text-text-secondary group-hover:text-primary"></i>
+          <span>{{ t('quickCommands.actions.pasteToTerminal', '粘贴到终端') }}</span>
+        </li>
+        <li
+          v-if="quickCommandContextTargetCommand"
+          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
+          @click="handleQuickCommandMenuAction('copyCommand', quickCommandContextTargetCommand!)"
+        >
+          <i class="fas fa-copy w-4 text-center text-text-secondary group-hover:text-primary"></i>
+          <span>{{ t('quickCommands.actions.copyCommand', '复制命令') }}</span>
+        </li>
+        <li
+          v-if="quickCommandContextTargetCommand"
+          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
+          @click="handleQuickCommandMenuAction('pasteToQuickInput', quickCommandContextTargetCommand!)"
+        >
+          <i class="fas fa-i-cursor w-4 text-center text-text-secondary group-hover:text-primary"></i>
+          <span>{{ t('quickCommands.actions.pasteToQuickInput', '粘贴到快捷输入框') }}</span>
+        </li>
+        <li
+          v-if="quickCommandContextTargetCommand"
+          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1"
           @click="handleQuickCommandMenuAction('sendToAllSessions', quickCommandContextTargetCommand!)"
         >
-          <span>{{ t('quickCommands.actions.sendToAllSessions', '发送到全部会话') }}</span>
+          <i class="fas fa-server w-4 text-center text-text-secondary group-hover:text-primary"></i>
+          <span>{{ t('quickCommands.actions.sendToAllSessions', '发送到全部服务器') }}</span>
+        </li>
+        <li
+          v-if="quickCommandContextTargetCommand"
+          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-foreground hover:bg-primary/10 hover:text-primary text-sm transition-colors duration-150 rounded-md mx-1 mt-1 border-t border-border/50 pt-2"
+          @click="handleQuickCommandMenuAction('edit', quickCommandContextTargetCommand!)"
+        >
+          <i class="fas fa-pen w-4 text-center text-text-secondary group-hover:text-primary"></i>
+          <span>{{ t('quickCommands.actions.edit', '编辑') }}</span>
+        </li>
+        <li
+          v-if="quickCommandContextTargetCommand"
+          class="group px-4 py-1.5 cursor-pointer flex items-center gap-3 text-error hover:bg-error/10 hover:text-error text-sm transition-colors duration-150 rounded-md mx-1"
+          @click="handleQuickCommandMenuAction('delete', quickCommandContextTargetCommand!)"
+        >
+          <i class="fas fa-trash-alt w-4 text-center text-error"></i>
+          <span>{{ t('quickCommands.actions.delete', '删除') }}</span>
         </li>
       </ul>
     </div>
@@ -241,7 +290,9 @@ import { useWorkspaceEventEmitter } from '../composables/workspaceEvents';
 import { useSessionStore } from '../stores/session.store';
 import type { SessionState } from '../stores/session/types'; 
 import { useConnectionsStore } from '../stores/connections.store';
+import { useLoginCredentialsStore } from '../stores/loginCredentials.store';
 import { getUniqueConnectedSshSessions } from '../utils/sessionSelection';
+import { resolveQuickCommandTemplate, type QuickCommandTemplateWarning } from '../utils/quickCommandTemplate';
 
 const quickCommandsStore = useQuickCommandsStore();
 const quickCommandTagsStore = useQuickCommandTagsStore(); 
@@ -253,6 +304,7 @@ const settingsStore = useSettingsStore();
 const emitWorkspaceEvent = useWorkspaceEventEmitter();
 const sessionStore = useSessionStore(); 
 const connectionsStore = useConnectionsStore(); 
+const loginCredentialsStore = useLoginCredentialsStore();
 
 const hoveredItemId = ref<number | null>(null);
 const isFormVisible = ref(false);
@@ -270,6 +322,14 @@ const tagInputRefs = ref(new Map<string | number, HTMLInputElement | null>());
 const quickCommandContextMenuVisible = ref(false);
 const quickCommandContextMenuPosition = ref({ x: 0, y: 0 });
 const quickCommandContextTargetCommand = ref<QuickCommandFE | null>(null);
+type QuickCommandContextAction =
+  | 'runNow'
+  | 'pasteToTerminal'
+  | 'copyCommand'
+  | 'pasteToQuickInput'
+  | 'edit'
+  | 'delete'
+  | 'sendToAllSessions';
 
 // --- 从 Store 获取状态和 Getter ---
 const searchTerm = computed(() => quickCommandsStore.searchTerm);
@@ -552,44 +612,81 @@ const copyCommand = async (command: string) => {
   }
 };
 
-// 执行命令
-const executeCommand = (cmd: QuickCommandFE) => {
-  // 1. 增加使用次数
-  quickCommandsStore.incrementUsage(cmd.id);
-
-  let processedCommand = cmd.command;
-  const savedVariables = cmd.variables || {}; // 使用已保存的变量
-
-  // 2. 执行变量替换
-  for (const varName in savedVariables) {
-    const placeholder = new RegExp(`\\$\\{${varName}\\}`, 'g');
-    processedCommand = processedCommand.replace(placeholder, savedVariables[varName]);
+const notifyTemplateWarnings = (undefinedVariables: string[], warnings: QuickCommandTemplateWarning[]) => {
+  if (undefinedVariables.length > 0) {
+    uiNotificationsStore.showWarning(
+      t('quickCommands.form.warningUndefinedVariables', { variables: undefinedVariables.join(', ') })
+    );
   }
 
-  // 3. 检查未定义变量
-  const variablePlaceholders = cmd.command.match(/\$\{[^\}]+\}/g) || [];
-  const undefinedVariables: string[] = [];
-  variablePlaceholders.forEach(placeholder => {
-    const varName = placeholder.substring(2, placeholder.length - 1);
-    if (!savedVariables.hasOwnProperty(varName)) {
-      undefinedVariables.push(varName);
+  warnings.forEach((warning) => {
+    if (warning.code === 'clipboardUnavailable') {
+      uiNotificationsStore.showWarning(t('quickCommands.form.dynamicVariables.warnings.clipboardUnavailable', '无法读取剪贴板内容，已按空文本处理。'));
+    } else if (warning.code === 'passwordUnavailable') {
+      uiNotificationsStore.showWarning(t('quickCommands.form.dynamicVariables.warnings.passwordUnavailable', '当前活动连接没有可用的登录密码，已按空文本处理。'));
+    } else if (warning.code === 'unknownDynamicVariable') {
+      uiNotificationsStore.showWarning(t('quickCommands.form.dynamicVariables.warnings.unknownVariable', { variable: warning.variable }));
     }
   });
+};
 
+const resolveProcessedCommand = async (cmd: QuickCommandFE, sessionId?: string | null) => {
+  const result = await resolveQuickCommandTemplate(cmd.command, {
+    customVariables: cmd.variables || {},
+    sessionId,
+    sessions: sessionStore.sessions,
+    connections: connectionsStore.connections,
+    fetchLoginCredentialDetails: loginCredentialsStore.fetchLoginCredentialDetails,
+  });
 
+  notifyTemplateWarnings(result.undefinedVariables, result.warnings);
+  return result.command;
+};
 
-  // 4. 获取当前激活的 SSH 会话 ID
+const getActiveSessionIdOrNotify = () => {
   const activeSessionId = sessionStore.activeSessionId;
   if (!activeSessionId) {
     uiNotificationsStore.showError(t('quickCommands.form.errorNoActiveSession', '没有活动的SSH会话可执行指令。'));
+    return null;
+  }
+  return activeSessionId;
+};
+
+// 执行命令
+const executeCommand = async (cmd: QuickCommandFE) => {
+  const activeSessionId = getActiveSessionIdOrNotify();
+  if (!activeSessionId) {
     return;
   }
 
-  // 5. 触发 quickCommand:executeProcessed 事件
+  void quickCommandsStore.incrementUsage(cmd.id);
+  const processedCommand = await resolveProcessedCommand(cmd, activeSessionId);
+
   emitWorkspaceEvent('quickCommand:executeProcessed', {
     command: processedCommand,
     sessionId: activeSessionId
   });
+};
+
+const pasteCommandToTerminalInput = async (cmd: QuickCommandFE) => {
+  const activeSessionId = getActiveSessionIdOrNotify();
+  if (!activeSessionId) {
+    return;
+  }
+
+  sessionStore.updateSessionCommandInput(activeSessionId, await resolveProcessedCommand(cmd, activeSessionId));
+  uiNotificationsStore.showSuccess(t('quickCommands.notifications.pastedToTerminal', '已粘贴到终端输入框'));
+};
+
+const pasteCommandToQuickInput = async (cmd: QuickCommandFE) => {
+  const activeSessionId = sessionStore.activeSessionId;
+  quickCommandsStore.setSearchTerm(await resolveProcessedCommand(cmd, activeSessionId));
+  await nextTick();
+  if (searchInputRef.value) {
+    searchInputRef.value.focus();
+    searchInputRef.value.select();
+  }
+  uiNotificationsStore.showSuccess(t('quickCommands.notifications.pastedToQuickInput', '已粘贴到快捷输入框'));
 };
 
 // +++ 聚焦搜索框的方法 +++
@@ -761,15 +858,47 @@ const closeQuickCommandContextMenu = () => {
   document.removeEventListener('click', closeQuickCommandContextMenu);
 };
 
-const handleQuickCommandMenuAction = (action: 'sendToAllSessions', command: QuickCommandFE) => {
+const handleQuickCommandMenuAction = async (action: QuickCommandContextAction, command: QuickCommandFE) => {
   closeQuickCommandContextMenu();
+
+  if (action === 'runNow') {
+    await executeCommand(command);
+    return;
+  }
+
+  if (action === 'pasteToTerminal') {
+    await pasteCommandToTerminalInput(command);
+    return;
+  }
+
+  if (action === 'copyCommand') {
+    void copyCommand(command.command);
+    return;
+  }
+
+  if (action === 'pasteToQuickInput') {
+    await pasteCommandToQuickInput(command);
+    return;
+  }
+
+  if (action === 'edit') {
+    openEditForm(command);
+    return;
+  }
+
+  if (action === 'delete') {
+    void confirmDelete(command);
+    return;
+  }
+
   if (action === 'sendToAllSessions') {
     const activeSshSessions = getUniqueConnectedSshSessions(sessionStore.sessions, connectionsStore.connections);
 
     if (activeSshSessions.length > 0) {
-      activeSshSessions.forEach((session: SessionState) => {
-        emitWorkspaceEvent('terminal:sendCommand', { sessionId: session.sessionId, command: command.command });
-      });
+      for (const session of activeSshSessions) {
+        const processedCommand = await resolveProcessedCommand(command, session.sessionId);
+        emitWorkspaceEvent('terminal:sendCommand', { sessionId: session.sessionId, command: processedCommand });
+      }
       uiNotificationsStore.addNotification({
         message: t('quickCommands.notifications.sentToAllSessions', { count: activeSshSessions.length }),
         type: 'success',

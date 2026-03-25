@@ -17,6 +17,7 @@ import { Bar, Doughnut, Line } from 'vue-chartjs';
 import { format, formatDistanceToNow } from 'date-fns';
 import { enUS, ja, zhCN } from 'date-fns/locale';
 import type { Locale } from 'date-fns';
+import DashboardLiveMetricsPanel from './DashboardLiveMetricsPanel.vue';
 import type { ConnectionInfo } from '../stores/connections.store';
 import type { DashboardSummary } from '../types/server.types';
 
@@ -314,6 +315,8 @@ function handleConnect(connection: ConnectionInfo | null): void {
     >
       {{ t('dashboard.summaryLoadFailed') }}: {{ error }}
     </div>
+
+    <DashboardLiveMetricsPanel :summary="summary" :is-loading="isLoading" />
 
     <div class="grid grid-cols-1 gap-6 xl:grid-cols-3">
       <section class="rounded-xl border border-border bg-card p-4 shadow-sm xl:col-span-2">

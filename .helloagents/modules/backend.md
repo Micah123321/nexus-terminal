@@ -41,8 +41,13 @@
 
 ### 仪表盘聚合接口
 **条件**: 前端首页需要一次性获取可视化仪表盘统计。  
-**行为**: 后端新增 `packages/backend/src/dashboard/` 业务域，当前通过 `GET /api/v1/dashboard/summary` 聚合 SQLite 中的 `connections`、`connection_tags` 和 `audit_logs`，输出连接总量、近 7 天活跃连接数、标签覆盖连接数、24 小时 SSH 成功/失败计数、近 7 天活动趋势、连接类型分布、事件类型分布以及活跃连接排行；其中高频连接排行会安全解析审计日志 `details` 中的 `connectionId/connectionName`，解析失败的单条日志会被忽略而不阻断整体 summary。  
-**结果**: 仪表盘统计口径集中在后端统一维护，首页不再依赖多接口前端拼装，后续扩展更多运营指标时可沿用同一聚合模块。
+**行为**: 后端新增 `packages/backend/src/dashboard/` 业务域，当前通过 `GET /api/v1/dashboard/summary` 统一组合两类数据源：数据库侧继续聚合 SQLite 中的 `connections`、`connection_tags` 和 `audit_logs`，输出连接总量、近 7 天活跃连接数、标签覆盖连接数、24 小时 SSH 成功/失败计数、近 7 天活动趋势、连接类型分布、事件类型分布以及活跃连接排行；运行态侧则由 `dashboard.service.ts` 组合 `clientStates` 与 `sshSuspendService`，补充当前登录用户与系统范围的在线 SSH 会话数、挂起会话数和活跃状态监控流数量。其中高频连接排行会安全解析审计日志 `details` 中的 `connectionId/connectionName`，解析失败的单条日志会被忽略而不阻断整体 summary。  
+**结果**: 仪表盘统计口径集中在后端统一维护，首页既能看到稳定统计，也能看到当前用户与系统总览的实时会话指标，而无需前端额外拼接第二条接口链路。
+
+### 登录凭证管理
+**条件**: 用户需要把 SSH / RDP / VNC 的账号信息独立管理并复用于多台连接。  
+**行为**: 后端新增 `packages/backend/src/login-credentials/` 业务域和 `login_credentials` 表，通过 `/api/v1/login-credentials` 提供登录凭证列表、创建、编辑、删除和详情读取接口；`connections` 表新增 `login_credential_id` 外键，连接创建、更新和未保存测试时都可以引用已保存凭证；运行时凭证解析则优先读取 `login_credentials` 的用户名、认证方式和加密凭证，再回退到连接自身保存的直填字段，因此编辑登录凭证后，引用它的连接在测试和实际连接时会自动使用新配置。  
+**结果**: 连接管理支持“直填凭证”和“引用已保存凭证”双轨并存，旧连接保持兼容，后续如需扩展凭证审计、共享或筛选能力，也有了独立数据模型承接。
 
 ### 外观默认值
 **条件**: 数据库初始化、外观设置重置或前后端默认主题定义调整。  

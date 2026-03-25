@@ -42,6 +42,39 @@
           <button type="button" @click="addVariable" class="mt-3 w-full py-2 px-4 border border-primary/50 text-primary text-sm rounded-md hover:bg-primary/10 transition-colors duration-150">
             {{ t('quickCommands.form.addVariable', '+ 添加变量') }}
           </button>
+
+          <div class="mt-5 border-t border-border/40 pt-4 space-y-4">
+            <div>
+              <h3 class="text-md font-medium text-text-secondary">{{ t('quickCommands.form.dynamicVariables.title', '动态变量') }}</h3>
+              <p class="mt-1 text-xs leading-5 text-text-tertiary">
+                {{ t('quickCommands.form.dynamicVariables.description', '点击下方变量即可插入到指令中，执行时会自动填充。') }}
+              </p>
+            </div>
+
+            <div v-for="group in dynamicVariableGroups" :key="group.key" class="space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                {{ t(group.titleKey, group.fallbackTitle) }}
+              </p>
+              <button
+                v-for="item in group.items"
+                :key="item.key"
+                type="button"
+                class="w-full rounded-lg border border-border/40 bg-input/20 px-3 py-2 text-left transition-colors duration-150 hover:border-primary/40 hover:bg-primary/10"
+                @click="insertDynamicVariable(item.insertValue)"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-sm font-medium text-foreground">{{ t(item.labelKey, item.key) }}</span>
+                  <code class="rounded bg-background/80 px-1.5 py-0.5 text-[11px] text-primary">{{ item.insertValue }}</code>
+                </div>
+                <p class="mt-1 text-xs leading-5 text-text-secondary">
+                  {{ t(item.descriptionKey, item.key) }}
+                </p>
+                <p class="mt-1 text-[11px] text-text-tertiary">
+                  {{ t('quickCommands.form.dynamicVariables.exampleLabel', '示例') }}: <code>{{ item.example }}</code>
+                </p>
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- 右侧：现有表单 -->
@@ -60,6 +93,7 @@
         <div class="flex flex-col flex-grow">
           <label for="qc-command" class="block mb-1.5 text-sm font-medium text-text-secondary">{{ t('quickCommands.form.command', '指令:') }} <span class="text-error">*</span></label>
           <textarea
+            ref="commandTextareaRef"
             id="qc-command"
             v-model="formData.command"
             required
@@ -105,17 +139,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import { useResizable } from '../composables/useResizable';
 import { useI18n } from 'vue-i18n';
 import { useQuickCommandsStore, type QuickCommandFE } from '../stores/quickCommands.store';
 import { useQuickCommandTagsStore } from '../stores/quickCommandTags.store';
+import { useConnectionsStore } from '../stores/connections.store';
+import { useLoginCredentialsStore } from '../stores/loginCredentials.store';
 import { useSessionStore } from '../stores/session.store';
 import { useUiNotificationsStore } from '../stores/uiNotifications.store'; 
 import { useWorkspaceEventEmitter } from '../composables/workspaceEvents'; 
 import TagInput from './TagInput.vue';
 import { useConfirmDialog } from '../composables/useConfirmDialog';
 import { useAlertDialog } from '../composables/useAlertDialog'; 
+import {
+  DYNAMIC_VARIABLE_DEFINITIONS,
+  resolveQuickCommandTemplate,
+  type DynamicVariableDefinition,
+  type QuickCommandTemplateWarning,
+} from '../utils/quickCommandTemplate';
 
 const props = defineProps<{
     commandToEdit?: QuickCommandFE | null; // 接收要编辑的指令对象 (应包含标签ID和变量)
@@ -128,12 +170,15 @@ const { showConfirmDialog } = useConfirmDialog();
 const { showAlertDialog } = useAlertDialog(); 
 const quickCommandsStore = useQuickCommandsStore();
 const quickCommandTagsStore = useQuickCommandTagsStore(); 
+const connectionsStore = useConnectionsStore();
+const loginCredentialsStore = useLoginCredentialsStore();
 const sessionStore = useSessionStore(); 
 const uiNotificationsStore = useUiNotificationsStore(); 
 const emitWorkspaceEvent = useWorkspaceEventEmitter(); 
 const isSubmitting = ref(false);
 
 const modalContentRef = ref<HTMLElement | null>(null);
+const commandTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const R_MIN_WIDTH = 800; // 可调整大小的最小宽度 (像素)
 const R_MIN_HEIGHT = 700; // 可调整大小的最小高度 (像素)
 const placeholder = t('quickCommands.form.commandPlaceholder') + 'echo "Hello,\${USERNAME}"'
@@ -155,6 +200,30 @@ const localVariables = ref<{ name: string; value: string; id: string }[]>([]);
 
 
 const commandError = ref<string | null>(null);
+const dynamicVariableGroups = computed(() => {
+  const groups: Array<{ key: string; titleKey: string; fallbackTitle: string; items: DynamicVariableDefinition[] }> = [
+    {
+      key: 'datetime',
+      titleKey: 'quickCommands.form.dynamicVariables.groups.datetime',
+      fallbackTitle: '日期时间',
+      items: DYNAMIC_VARIABLE_DEFINITIONS.filter((item) => item.group === 'datetime'),
+    },
+    {
+      key: 'identity',
+      titleKey: 'quickCommands.form.dynamicVariables.groups.identity',
+      fallbackTitle: '唯一标识',
+      items: DYNAMIC_VARIABLE_DEFINITIONS.filter((item) => item.group === 'identity'),
+    },
+    {
+      key: 'system',
+      titleKey: 'quickCommands.form.dynamicVariables.groups.system',
+      fallbackTitle: '系统',
+      items: DYNAMIC_VARIABLE_DEFINITIONS.filter((item) => item.group === 'system'),
+    },
+  ];
+
+  return groups.filter((group) => group.items.length > 0);
+});
 
 // 监听指令内容变化，进行校验
 watch(() => formData.command, (newCommand) => {
@@ -277,47 +346,80 @@ const deleteVariable = (variableId: string) => {
   localVariables.value = localVariables.value.filter(v => v.id !== variableId);
 };
 
-// 使用当前变量执行命令
-const handleExecute = () => {
-  let processedCommand = formData.command;
-  const currentVariables = localVariables.value.reduce((acc, curr) => {
+const collectCurrentVariables = () => {
+  return localVariables.value.reduce((acc, curr) => {
     if (curr.name.trim()) {
       acc[curr.name.trim()] = curr.value;
     }
     return acc;
   }, {} as Record<string, string>);
+};
 
-  // 执行变量替换
-  for (const varName in currentVariables) {
-    const placeholder = new RegExp(`\\$\\{${varName}\\}`, 'g');
-    processedCommand = processedCommand.replace(placeholder, currentVariables[varName]);
-  }
-
-  // 检查模板中是否存在未定义的变量
-  const variablePlaceholders = formData.command.match(/\$\{[^\}]+\}/g) || [];
-  const undefinedVariables: string[] = [];
-  variablePlaceholders.forEach(placeholder => {
-    const varName = placeholder.substring(2, placeholder.length - 1);
-    if (!currentVariables.hasOwnProperty(varName)) {
-      undefinedVariables.push(varName);
-    }
-  });
-
+const notifyTemplateWarnings = (undefinedVariables: string[], warnings: QuickCommandTemplateWarning[]) => {
   if (undefinedVariables.length > 0) {
     uiNotificationsStore.showWarning(
       t('quickCommands.form.warningUndefinedVariables', { variables: undefinedVariables.join(', ') })
     );
   }
 
+  warnings.forEach((warning) => {
+    if (warning.code === 'clipboardUnavailable') {
+      uiNotificationsStore.showWarning(t('quickCommands.form.dynamicVariables.warnings.clipboardUnavailable', '无法读取剪贴板内容，已按空文本处理。'));
+    } else if (warning.code === 'passwordUnavailable') {
+      uiNotificationsStore.showWarning(t('quickCommands.form.dynamicVariables.warnings.passwordUnavailable', '当前活动连接没有可用的登录密码，已按空文本处理。'));
+    } else if (warning.code === 'unknownDynamicVariable') {
+      uiNotificationsStore.showWarning(t('quickCommands.form.dynamicVariables.warnings.unknownVariable', { variable: warning.variable }));
+    }
+  });
+};
+
+const getActiveSessionIdOrNotify = () => {
   const activeSessionId = sessionStore.activeSessionId;
   if (!activeSessionId) {
     uiNotificationsStore.showError(t('quickCommands.form.errorNoActiveSession', '没有活动的SSH会话可执行指令。'));
+    return null;
+  }
+
+  return activeSessionId;
+};
+
+const insertDynamicVariable = async (placeholderValue: string) => {
+  const textarea = commandTextareaRef.value;
+  if (!textarea) {
+    formData.command += placeholderValue;
     return;
   }
 
-  console.log(`[QuickCmdForm] Executing processed command: "${processedCommand}" on session ${activeSessionId}`);
+  const selectionStart = textarea.selectionStart ?? formData.command.length;
+  const selectionEnd = textarea.selectionEnd ?? formData.command.length;
+  formData.command = `${formData.command.slice(0, selectionStart)}${placeholderValue}${formData.command.slice(selectionEnd)}`;
+
+  await nextTick();
+  textarea.focus();
+  const nextCursorPosition = selectionStart + placeholderValue.length;
+  textarea.setSelectionRange(nextCursorPosition, nextCursorPosition);
+};
+
+// 使用当前变量执行命令
+const handleExecute = async () => {
+  const activeSessionId = getActiveSessionIdOrNotify();
+  if (!activeSessionId) {
+    return;
+  }
+
+  const result = await resolveQuickCommandTemplate(formData.command, {
+    customVariables: collectCurrentVariables(),
+    sessionId: activeSessionId,
+    sessions: sessionStore.sessions,
+    connections: connectionsStore.connections,
+    fetchLoginCredentialDetails: loginCredentialsStore.fetchLoginCredentialDetails,
+  });
+
+  notifyTemplateWarnings(result.undefinedVariables, result.warnings);
+
+  console.log(`[QuickCmdForm] Executing processed command: "${result.command}" on session ${activeSessionId}`);
   emitWorkspaceEvent('quickCommand:executeProcessed', {
-    command: processedCommand,
+    command: result.command,
     sessionId: activeSessionId
   });
 
