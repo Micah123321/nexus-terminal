@@ -36,8 +36,8 @@
 
 ### 工作区交互
 **条件**: 用户进入 `/workspace` 或相关管理页面。  
-**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值；`Terminal.vue` 会跟踪 xterm 的视口行号与贴底状态，在终端标签切换、重新激活和 `fit()` 后按原滚动意图恢复，并在渲染层为带 `xterm-fg-*` class 或内联 `style.color` 的显式前景色字符打标记，让终端文字描边/阴影仅作用于默认前景文本，不覆盖 ANSI 彩色输出；`ConnectionsView.vue` 已升级为“左侧范围树 + 顶部搜索工具条 + 右侧结果列表”的双栏管理台，左侧支持全部/未标记/标签树切换，右侧列表与类型筛选、搜索、排序、批量编辑和批量删除共用同一过滤管线；样式编辑器中的终端文字描边/阴影默认开关也已与新的黑绿终端风格保持默认开启。  
-**结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中布局与交互微调优先落在 `layout.store.ts`、`LayoutRenderer.vue`、`WorkspaceWorkbench.vue`、`QuickCommandsView.vue`、`ConnectionsView.vue`、`Terminal.vue`、`StyleCustomizerUiTab.vue`、`StyleCustomizerTerminalTab.vue` 和 `features/appearance/config/default-themes.ts`。
+**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值；`Terminal.vue` 会跟踪 xterm 的视口行号与贴底状态，在终端标签切换、重新激活和 `fit()` 后按原滚动意图恢复，并在渲染层为带 `xterm-fg-*` class 或内联 `style.color` 的显式前景色字符打标记，让终端文字描边/阴影仅作用于默认前景文本，不覆盖 ANSI 彩色输出；`session.store` 当前会为同一 SSH 连接下的新终端分配递增的 `terminalIndex`，`TerminalTabBar.vue` 则把当前连接“继续新增终端”和“改连其他服务器”拆成独立入口，并在标签上显示终端序号，从而实现“单连接默认 1 个终端、可继续追加多个终端”的交互；`ConnectionsView.vue` 已升级为“左侧范围树 + 顶部搜索工具条 + 右侧结果列表”的双栏管理台，当前左侧进一步支持基于标签名路径分隔符推导的多级标签树、树节点展开状态持久化和分组 scope 恢复，右侧结果列表则同时支持顶部排序控件、列头点击排序和行级“更多”菜单（克隆/删除）；样式编辑器中的终端文字描边/阴影默认开关也已与新的黑绿终端风格保持默认开启。  
+**结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中工作区终端行为和标签交互优先落在 `session.store.ts`、`session/actions/sessionActions.ts`、`session/getters.ts`、`TerminalTabBar.vue`、`WorkspaceView.vue`、`Terminal.vue` 与相关 locale 文件。
 
 ## 依赖关系
 

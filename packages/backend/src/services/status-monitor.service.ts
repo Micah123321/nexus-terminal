@@ -9,12 +9,20 @@ interface ServerStatus {
     memPercent?: number;
     memUsed?: number; // MB
     memTotal?: number; // MB
+    memFree?: number; // MB
+    memCached?: number; // MB
     swapPercent?: number;
     swapUsed?: number; // MB
     swapTotal?: number; // MB
     diskPercent?: number;
     diskUsed?: number; // KB
     diskTotal?: number; // KB
+    diskAvailable?: number; // KB
+    diskMountPoint?: string;
+    diskFsType?: string;
+    diskDevice?: string;
+    diskReadRate?: number; // Bytes per second
+    diskWriteRate?: number; // Bytes per second
     cpuModel?: string;
     netRxRate?: number; // Bytes per second
     netTxRate?: number; // Bytes per second
@@ -34,9 +42,17 @@ interface NetworkStats {
     }
 }
 
+interface DiskIoStats {
+    [deviceName: string]: {
+        readBytes: number;
+        writeBytes: number;
+    }
+}
+
 
 // 用于存储上一次的网络统计信息以计算速率
 const previousNetStats = new Map<string, { rx: number, tx: number, timestamp: number }>();
+const previousDiskStats = new Map<string, { device: string, readBytes: number, writeBytes: number, timestamp: number }>();
 
 export class StatusMonitorService {
     private clientStates: Map<string, ClientState>; // 使用导入的 ClientState
@@ -45,6 +61,32 @@ export class StatusMonitorService {
 
     constructor(clientStates: Map<string, ClientState>) {
         this.clientStates = clientStates;
+    }
+
+    private async parseProcDiskStats(sshClient: Client): Promise<DiskIoStats | null> {
+        try {
+            const output = await this.executeSshCommand(sshClient, 'cat /proc/diskstats');
+            const stats: DiskIoStats = {};
+
+            for (const line of output.split('\n')) {
+                const parts = line.trim().split(/\s+/);
+                if (parts.length < 10) continue;
+
+                const deviceName = parts[2];
+                const sectorsRead = parseInt(parts[5], 10);
+                const sectorsWritten = parseInt(parts[9], 10);
+                if (!isNaN(sectorsRead) && !isNaN(sectorsWritten)) {
+                    stats[deviceName] = {
+                        readBytes: sectorsRead * 512,
+                        writeBytes: sectorsWritten * 512,
+                    };
+                }
+            }
+
+            return Object.keys(stats).length > 0 ? stats : null;
+        } catch (error) {
+            return null;
+        }
     }
 
     /**
@@ -88,6 +130,7 @@ export class StatusMonitorService {
             clearInterval(state.statusIntervalId);
             state.statusIntervalId = undefined;
             previousNetStats.delete(sessionId); // 清理网络统计缓存
+            previousDiskStats.delete(sessionId);
             this.previousCpuStats.delete(sessionId); // 清理 CPU 统计缓存
         }
     }
@@ -170,22 +213,52 @@ export class StatusMonitorService {
                  }
                  const freeOutput = await this.executeSshCommand(sshClient, freeCommand);
                  const lines = freeOutput.split('\n');
+                 const headerLine = lines.find(line => line.toLowerCase().includes('total') && line.toLowerCase().includes('used'));
                  const memLine = lines.find(line => line.startsWith('Mem:'));
                  const swapLine = lines.find(line => line.startsWith('Swap:'));
-                 if (memLine) {
+                 if (memLine && headerLine) {
+                     const headers = headerLine.trim().split(/\s+/);
+                     const values = memLine.trim().split(/\s+/).slice(1);
+                     const memoryFields: Record<string, number> = {};
+
+                     headers.forEach((header, index) => {
+                         const rawValue = parseInt(values[index], 10);
+                         if (!isNaN(rawValue)) {
+                             memoryFields[header.toLowerCase()] = isBusyBox ? Math.round(rawValue / 1024) : rawValue;
+                         }
+                     });
+
+                     const totalVal = memoryFields.total;
+                     const usedVal = memoryFields.used;
+                     const freeVal = memoryFields.free;
+                     const cachedVal = memoryFields['buff/cache'] ?? ((memoryFields.buffers ?? 0) + (memoryFields.cached ?? 0));
+
+                     if (!isNaN(totalVal) && !isNaN(usedVal)) {
+                         status.memTotal = totalVal;
+                         status.memUsed = usedVal;
+                         status.memPercent = totalVal > 0 ? parseFloat(((usedVal / totalVal) * 100).toFixed(1)) : 0;
+                         status.memFree = !isNaN(freeVal) ? freeVal : Math.max(totalVal - usedVal - (cachedVal || 0), 0);
+                         if (cachedVal > 0) {
+                             status.memCached = cachedVal;
+                         }
+                     }
+                 } else if (memLine) {
                      const parts = memLine.split(/\s+/);
-                     if (parts.length >= 3) {
+                     if (parts.length >= 4) {
                          let totalVal = parseInt(parts[1], 10);
                          let usedVal = parseInt(parts[2], 10);
+                         let freeVal = parseInt(parts[3], 10);
 
-                         if (isBusyBox) { 
+                         if (isBusyBox) {
                              if (!isNaN(totalVal)) totalVal = Math.round(totalVal / 1024);
                              if (!isNaN(usedVal)) usedVal = Math.round(usedVal / 1024);
+                             if (!isNaN(freeVal)) freeVal = Math.round(freeVal / 1024);
                          }
 
                          if (!isNaN(totalVal) && !isNaN(usedVal)) {
                              status.memTotal = totalVal;
                              status.memUsed = usedVal;
+                             status.memFree = !isNaN(freeVal) ? freeVal : undefined;
                              status.memPercent = totalVal > 0 ? parseFloat(((usedVal / totalVal) * 100).toFixed(1)) : 0;
                          }
                      }
@@ -216,12 +289,12 @@ export class StatusMonitorService {
 
 
              try {
-                 let dfCommand = "df -kP /"; // 优先尝试 POSIX 标准格式
+                 let dfCommand = "df -kPT /";
                  let dfOutput: string;
                  try {
                      dfOutput = await this.executeSshCommand(sshClient, dfCommand);
                  } catch (errP) {
-                     dfCommand = "df -k /"; // 备用方案
+                     dfCommand = "df -kP /";
                      try {
                         dfOutput = await this.executeSshCommand(sshClient, dfCommand);
                      } catch (errK) {
@@ -231,13 +304,38 @@ export class StatusMonitorService {
 
                  if (dfOutput) {
                      const lines = dfOutput.split('\n');
+                     let rawDiskDevice: string | undefined;
                      let parsedDiskInfo = false;
                      // 从第二行开始查找根挂载点信息 (跳过表头)
                      for (let i = 1; i < lines.length; i++) {
                          const line = lines[i].trim();
                          // 确保是根挂载点，通常以 " /" 结尾
-                         if (line.endsWith(" /")) {
-                             const parts = line.split(/\s+/);
+                         if (!line.endsWith(" /")) {
+                             continue;
+                         }
+
+                         const parts = line.split(/\s+/);
+                         const hasTypeColumn = parts.length >= 7;
+                         const totalIndex = hasTypeColumn ? 2 : 1;
+                         const usedIndex = hasTypeColumn ? 3 : 2;
+                         const availableIndex = hasTypeColumn ? 4 : 3;
+                         const percentIndex = hasTypeColumn ? 5 : 4;
+                         const mountIndex = hasTypeColumn ? 6 : 5;
+                         const total = parseInt(parts[totalIndex], 10);
+                         const used = parseInt(parts[usedIndex], 10);
+                         const available = parseInt(parts[availableIndex], 10);
+                         const percentMatch = parts[percentIndex]?.match(/(\d+)%/);
+
+                         if (!isNaN(total) && !isNaN(used) && !isNaN(available) && percentMatch?.[1]) {
+                             rawDiskDevice = parts[0];
+                             status.diskFsType = hasTypeColumn ? parts[1] : status.diskFsType;
+                             status.diskTotal = total;
+                             status.diskUsed = used;
+                             status.diskAvailable = available;
+                             status.diskPercent = parseFloat(percentMatch[1]);
+                             status.diskMountPoint = parts[mountIndex] || '/';
+                             break;
+                         }
                              // 预期 parts 至少包含: 文件系统, 总量(KB), 已用(KB), 可用(KB), 百分比%, 挂载点
                              // 例如: /dev/sda1 10307920 3841884 5941800 40% /
                              if (parts.length >= 5) {
@@ -256,6 +354,46 @@ export class StatusMonitorService {
                                      }
                                  }
                              }
+                         }
+                     }
+
+                     if (!rawDiskDevice || !status.diskFsType || !status.diskMountPoint) {
+                         try {
+                             const findmntOutput = await this.executeSshCommand(sshClient, 'findmnt -n -o SOURCE,FSTYPE,TARGET /');
+                             const findmntParts = findmntOutput.trim().split(/\s+/);
+                             rawDiskDevice = rawDiskDevice || findmntParts[0];
+                             status.diskFsType = status.diskFsType || findmntParts[1];
+                             status.diskMountPoint = status.diskMountPoint || findmntParts[2] || '/';
+                         } catch (findmntErr) { /* 静默处理 */ }
+                     }
+
+                     status.diskDevice = this.normalizeDiskDevice(rawDiskDevice);
+
+                     if (status.diskDevice) {
+                         const currentDiskStats = await this.parseProcDiskStats(sshClient);
+                         const deviceStats = currentDiskStats?.[status.diskDevice];
+                         if (deviceStats) {
+                             const previousStats = previousDiskStats.get(sessionId);
+                             if (previousStats && previousStats.device === status.diskDevice && previousStats.timestamp < timestamp) {
+                                 const timeDiffSeconds = (timestamp - previousStats.timestamp) / 1000;
+                                 if (timeDiffSeconds > 0.1) {
+                                     status.diskReadRate = Math.max(0, Math.round((deviceStats.readBytes - previousStats.readBytes) / timeDiffSeconds));
+                                     status.diskWriteRate = Math.max(0, Math.round((deviceStats.writeBytes - previousStats.writeBytes) / timeDiffSeconds));
+                                 } else {
+                                     status.diskReadRate = 0;
+                                     status.diskWriteRate = 0;
+                                 }
+                             } else {
+                                 status.diskReadRate = 0;
+                                 status.diskWriteRate = 0;
+                             }
+
+                             previousDiskStats.set(sessionId, {
+                                 device: status.diskDevice,
+                                 readBytes: deviceStats.readBytes,
+                                 writeBytes: deviceStats.writeBytes,
+                                 timestamp,
+                             });
                          }
                      }
 
@@ -412,6 +550,31 @@ export class StatusMonitorService {
         }
 
         return null;
+    }
+
+    private normalizeDiskDevice(rawDevice?: string): string | undefined {
+        if (!rawDevice) {
+            return undefined;
+        }
+
+        let normalized = rawDevice.trim();
+        if (!normalized) {
+            return undefined;
+        }
+
+        if (normalized.startsWith('/dev/')) {
+            normalized = normalized.slice(5);
+        }
+
+        if (/^(sd[a-z]+|vd[a-z]+|xvd[a-z]+|hd[a-z]+)\d+$/.test(normalized)) {
+            return normalized.replace(/\d+$/, '');
+        }
+
+        if (/^(nvme\d+n\d+|mmcblk\d+)p\d+$/.test(normalized)) {
+            return normalized.replace(/p\d+$/, '');
+        }
+
+        return normalized;
     }
 
     /**

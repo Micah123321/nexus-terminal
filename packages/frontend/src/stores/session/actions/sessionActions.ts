@@ -21,6 +21,18 @@ const findConnectionInfo = (connectionId: number | string, connectionsStore: Ret
   return connectionsStore.connections.find(c => c.id === Number(connectionId));
 };
 
+const getNextTerminalIndex = (connectionId: string): number => {
+  let maxTerminalIndex = 0;
+
+  sessions.value.forEach((session) => {
+    if (session.connectionId === connectionId) {
+      maxTerminalIndex = Math.max(maxTerminalIndex, session.terminalIndex || 0);
+    }
+  });
+
+  return maxTerminalIndex + 1;
+};
+
 // --- Actions ---
 export const openNewSession = (
     connectionOrId: ConnectionInfo | number | string,
@@ -51,6 +63,7 @@ export const openNewSession = (
 
   const newSessionId = existingSessionId || generateSessionId();
   const dbConnId = String(connInfo.id); // connInfo is now guaranteed to be defined here
+  const terminalIndex = getNextTerminalIndex(dbConnId);
 
   // 1. 创建管理器实例
   const isResume = !!existingSessionId; // 如果提供了 existingSessionId，则为恢复流程
@@ -60,6 +73,7 @@ export const openNewSession = (
       sessionId: newSessionId,
       connectionId: dbConnId,
       connectionName: connInfo.name || connInfo.host,
+      terminalIndex,
       editorTabs: ref([]),
       activeEditorTabId: ref(null),
       commandInputContent: ref(''),
@@ -115,7 +129,7 @@ export const openNewSession = (
   newSessionsMap.set(newSessionId, newSession);
   sessions.value = newSessionsMap;
   activeSessionId.value = newSessionId;
-  console.log(`[SessionActions] 已创建新会话实例: ${newSessionId} for connection ${dbConnId}`);
+  console.log(`[SessionActions] 已创建新会话实例: ${newSessionId} for connection ${dbConnId} (terminal #${terminalIndex})`);
 
   // +++ 在连接前设置 ssh:connected 处理器以更新 sessionId +++
   const originalFrontendSessionIdForHandler = newSessionId; // 捕获初始ID给闭包

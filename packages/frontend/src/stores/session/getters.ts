@@ -7,7 +7,9 @@ import type { SessionState, SessionTabInfoWithStatus } from './types';
 export const sessionTabs = computed(() => {
   return Array.from(sessions.value.values()).map(session => ({
     sessionId: session.sessionId,
+    connectionId: session.connectionId,
     connectionName: session.connectionName,
+    terminalIndex: session.terminalIndex,
   }));
 });
 
@@ -39,7 +41,9 @@ export const sessionTabsWithStatus = computed((): SessionTabInfoWithStatus[] => 
       })
       .map(session => ({
         sessionId: session.sessionId,
+        connectionId: session.connectionId,
         connectionName: session.connectionName,
+        terminalIndex: session.terminalIndex,
         status: session.wsManager.connectionStatus.value, // 从 wsManager 获取状态
         isMarkedForSuspend: session.isMarkedForSuspend,
       }));
@@ -49,7 +53,9 @@ export const sessionTabsWithStatus = computed((): SessionTabInfoWithStatus[] => 
       .sort((a, b) => a.createdAt - b.createdAt)
       .map(session => ({
         sessionId: session.sessionId,
+        connectionId: session.connectionId,
         connectionName: session.connectionName,
+        terminalIndex: session.terminalIndex,
         status: session.wsManager.connectionStatus.value, // 从 wsManager 获取状态
         isMarkedForSuspend: session.isMarkedForSuspend,
       }));

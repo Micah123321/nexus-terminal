@@ -13,6 +13,8 @@
 | 202603250603 | dark-green-night-theme | implementation | frontend, backend | - | ✅完成 |
 | 202603250614 | terminal-ansi-color-effects | implementation | frontend, backend | - | ✅完成 |
 | 202603250636 | connections-view-tree-search-redesign | implementation | frontend | - | ✅完成 |
+| 202603252152 | connections-tree-sort-more-menu | implementation | frontend | - | ✅完成 |
+| 202603252207 | ssh-connection-multi-terminal | implementation | frontend | ssh-connection-multi-terminal#D001 | ✅完成 |
 | 202603251200 | workspace-workbench-monitor | implementation | frontend, backend | workspace-workbench-monitor#D001 | ✅完成 |
 
 ## 按月归档
@@ -24,6 +26,8 @@
 - [202603250603_dark-green-night-theme](./2026-03/202603250603_dark-green-night-theme/) - 将黑暗模式预设与终端默认主题统一调整为黑绿夜间风格
 - [202603250614_terminal-ansi-color-effects](./2026-03/202603250614_terminal-ansi-color-effects/) - 修复终端文字效果覆盖 ANSI 彩色输出的问题，并将文字效果默认开关改为开启
 - [202603250636_connections-view-tree-search-redesign](./2026-03/202603250636_connections-view-tree-search-redesign/) - 将连接管理页升级为左侧标签树、顶部搜索工具条和右侧结果列表的双栏管理台
+- [202603252152_connections-tree-sort-more-menu](./2026-03/202603252152_connections-tree-sort-more-menu/) - 为连接管理页补充多级标签树、列头排序和行级更多菜单
+- [202603252207_ssh-connection-multi-terminal](./2026-03/202603252207_ssh-connection-multi-terminal/) - 为同一 SSH 服务器连接补充多终端入口与终端序号标识
 - [202603251200_workspace-workbench-monitor](./2026-03/202603251200_workspace-workbench-monitor/) - `/workspace` 改为三栏 Workbench 布局，并新增开机累计流量监控
 
 ## 结果状态说明

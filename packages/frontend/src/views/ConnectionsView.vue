@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AddConnectionForm from '../components/AddConnectionForm.vue';
 import BatchEditConnectionForm from '../components/BatchEditConnectionForm.vue';
 import { useConnectionsStore } from '../stores/connections.store';
@@ -17,12 +17,20 @@ import { zhCN, enUS, ja } from 'date-fns/locale';
 import type { Locale } from 'date-fns';
 
 type ConnectionTypeFilter = 'ALL' | 'SSH' | 'RDP' | 'VNC';
-type ScopeId = 'all' | 'untagged' | `tag:${number}`;
+type ScopeId = 'all' | 'untagged' | `tag:${number}` | `group:${string}`;
+type ConnectionSortField = SortField | 'host';
 
 interface ScopeNode {
   id: ScopeId;
   label: string;
   count: number;
+}
+
+interface TagTreeNode extends ScopeNode {
+  fullLabel: string;
+  level: number;
+  expandable: boolean;
+  children: TagTreeNode[];
 }
 
 interface ConnectionTestState {
@@ -48,12 +56,17 @@ const LS_FILTER_TAG_KEY = 'connections_view_filter_tag';
 const LS_FILTER_SCOPE_KEY = 'connections_view_filter_scope';
 const LS_TYPE_FILTER_KEY = 'connections_view_type_filter';
 
-const localSortBy = ref<SortField>(localStorage.getItem(LS_SORT_BY_KEY) as SortField || 'last_connected_at');
+const localSortBy = ref<ConnectionSortField>((localStorage.getItem(LS_SORT_BY_KEY) as ConnectionSortField) || 'last_connected_at');
 const localSortOrder = ref<SortOrder>(localStorage.getItem(LS_SORT_ORDER_KEY) as SortOrder || 'desc');
 
 const getInitialSelectedScope = (): ScopeId => {
   const storedScope = localStorage.getItem(LS_FILTER_SCOPE_KEY);
-  if (storedScope === 'all' || storedScope === 'untagged' || storedScope?.startsWith('tag:')) {
+  if (
+    storedScope === 'all' ||
+    storedScope === 'untagged' ||
+    storedScope?.startsWith('tag:') ||
+    storedScope?.startsWith('group:')
+  ) {
     return storedScope as ScopeId;
   }
 
@@ -80,20 +93,44 @@ const isBatchEditMode = ref(false);
 const selectedConnectionIdsForBatch = ref<Set<number>>(new Set());
 const showBatchEditForm = ref(false);
 const isDeletingSelectedConnections = ref(false);
+const expandedTreeNodes = ref<Record<string, boolean>>({});
 
 const connectionTestStates = ref<Map<number, ConnectionTestState>>(new Map());
 const isTestingAll = ref(false);
 const isConnectingAll = ref(false);
+const moreMenuOpenForId = ref<number | null>(null);
 
-const sortOptions: { value: SortField; labelKey: string }[] = [
+const sortOptions: { value: ConnectionSortField; labelKey: string }[] = [
   { value: 'last_connected_at', labelKey: 'dashboard.sortOptions.lastConnected' },
   { value: 'name', labelKey: 'dashboard.sortOptions.name' },
+  { value: 'host', labelKey: 'connections.table.host' },
   { value: 'type', labelKey: 'dashboard.sortOptions.type' },
   { value: 'updated_at', labelKey: 'dashboard.sortOptions.updated' },
   { value: 'created_at', labelKey: 'dashboard.sortOptions.created' },
 ];
 
+const TREE_EXPANDED_STORAGE_KEY = 'connections_view_tree_expanded';
+const tagPathSeparatorRegex = /\s*(?:\/|>|\\)\s*/;
+
 const normalizedSearchQuery = computed(() => searchQuery.value.toLowerCase().trim());
+
+const loadInitialExpandedTreeState = (): Record<string, boolean> => {
+  try {
+    const rawValue = localStorage.getItem(TREE_EXPANDED_STORAGE_KEY);
+    if (!rawValue) {
+      return {};
+    }
+
+    const parsed = JSON.parse(rawValue);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch (error) {
+    console.error('读取连接管理树展开状态失败:', error);
+    localStorage.removeItem(TREE_EXPANDED_STORAGE_KEY);
+    return {};
+  }
+};
+
+expandedTreeNodes.value = loadInitialExpandedTreeState();
 
 const tagLookup = computed(() => {
   const map = new Map<number, TagInfo>();
@@ -111,6 +148,21 @@ const getConnectionTagNames = (conn: ConnectionInfo): string[] => {
   return conn.tag_ids
     .map((tagId) => tagLookup.value.get(tagId)?.name)
     .filter((tagName): tagName is string => Boolean(tagName));
+};
+
+const getTagPathSegments = (tagName: string): string[] => {
+  return tagName
+    .split(tagPathSeparatorRegex)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+};
+
+const encodeGroupScopeId = (pathKey: string): ScopeId => {
+  return `group:${encodeURIComponent(pathKey)}`;
+};
+
+const decodeGroupScopeId = (scopeId: ScopeId): string => {
+  return decodeURIComponent(scopeId.replace('group:', ''));
 };
 
 const matchesSearchQuery = (conn: ConnectionInfo, query: string): boolean => {
@@ -141,7 +193,19 @@ const matchesScope = (conn: ConnectionInfo, scope: ScopeId): boolean => {
   }
 
   const tagId = parseInt(scope.replace('tag:', ''), 10);
-  return conn.tag_ids?.includes(tagId) ?? false;
+  if (!Number.isNaN(tagId) && conn.tag_ids?.includes(tagId)) {
+    return true;
+  }
+
+  if (scope.startsWith('group:')) {
+    const pathPrefix = decodeGroupScopeId(scope);
+    return getConnectionTagNames(conn).some((tagName) => {
+      const pathKey = getTagPathSegments(tagName).join('/');
+      return pathKey === pathPrefix || pathKey.startsWith(`${pathPrefix}/`);
+    });
+  }
+
+  return false;
 };
 
 const matchedConnections = computed(() => {
@@ -151,15 +215,109 @@ const matchedConnections = computed(() => {
   });
 });
 
-const tagTreeNodes = computed<ScopeNode[]>(() => {
-  return (tags.value as TagInfo[])
-    .map((tag) => ({
-      id: `tag:${tag.id}` as ScopeId,
-      label: tag.name,
-      count: matchedConnections.value.filter((conn) => conn.tag_ids?.includes(tag.id)).length,
-    }))
-    .sort((left, right) => left.label.localeCompare(right.label));
+const tagTreeNodes = computed<TagTreeNode[]>(() => {
+  type DraftTreeNode = {
+    id: ScopeId;
+    label: string;
+    fullLabel: string;
+    children: Map<string, DraftTreeNode>;
+    tagId: number | null;
+  };
+
+  const rootChildren = new Map<string, DraftTreeNode>();
+
+  (tags.value as TagInfo[]).forEach((tag) => {
+    const segments = getTagPathSegments(tag.name);
+    if (!segments.length) {
+      return;
+    }
+
+    let currentChildren = rootChildren;
+    const currentPathSegments: string[] = [];
+
+    segments.forEach((segment, index) => {
+      currentPathSegments.push(segment);
+      const pathKey = currentPathSegments.join('/');
+      const isLeaf = index === segments.length - 1;
+      const nodeKey = (isLeaf ? `tag:${tag.id}` : encodeGroupScopeId(pathKey)) as ScopeId;
+
+      if (!currentChildren.has(nodeKey)) {
+        currentChildren.set(nodeKey, {
+          id: nodeKey,
+          label: segment,
+          fullLabel: currentPathSegments.join(' / '),
+          children: new Map<string, DraftTreeNode>(),
+          tagId: isLeaf ? tag.id : null,
+        });
+      }
+
+      const currentNode = currentChildren.get(nodeKey)!;
+      if (isLeaf) {
+        currentNode.fullLabel = tag.name;
+        currentNode.tagId = tag.id;
+      }
+      currentChildren = currentNode.children;
+    });
+  });
+
+  const buildNodes = (source: Map<string, DraftTreeNode>, level: number): TagTreeNode[] => {
+    return Array.from(source.values())
+      .sort((left, right) => left.label.localeCompare(right.label))
+      .map((node) => {
+        const children = buildNodes(node.children, level + 1);
+        const count =
+          node.tagId !== null
+            ? matchedConnections.value.filter((conn) => conn.tag_ids?.includes(node.tagId!)).length
+            : matchedConnections.value.filter((conn) => matchesScope(conn, node.id)).length;
+
+        return {
+          id: node.id,
+          label: node.label,
+          fullLabel: node.fullLabel,
+          count,
+          level,
+          expandable: children.length > 0,
+          children,
+        };
+      });
+  };
+
+  return buildNodes(rootChildren, 0);
 });
+
+const visibleTagTreeNodes = computed<TagTreeNode[]>(() => {
+  const rows: TagTreeNode[] = [];
+
+  const appendVisibleNodes = (nodes: TagTreeNode[]) => {
+    nodes.forEach((node) => {
+      rows.push(node);
+      if (node.expandable && (expandedTreeNodes.value[node.id] ?? true)) {
+        appendVisibleNodes(node.children);
+      }
+    });
+  };
+
+  appendVisibleNodes(tagTreeNodes.value);
+  return rows;
+});
+
+const expandableTreeNodeIds = computed<ScopeId[]>(() => {
+  const ids: ScopeId[] = [];
+
+  const collectNodeIds = (nodes: TagTreeNode[]) => {
+    nodes.forEach((node) => {
+      if (node.expandable) {
+        ids.push(node.id);
+        collectNodeIds(node.children);
+      }
+    });
+  };
+
+  collectNodeIds(tagTreeNodes.value);
+  return ids;
+});
+
+const hasExpandableTreeNodes = computed(() => expandableTreeNodeIds.value.length > 0);
 
 const primaryScopeNodes = computed<ScopeNode[]>(() => {
   return [
@@ -192,6 +350,10 @@ const filteredAndSortedConnections = computed(() => {
           leftValue = left.name || left.host;
           rightValue = right.name || right.host;
           return String(leftValue).localeCompare(String(rightValue)) * sortOrderFactor;
+        case 'host':
+          leftValue = left.host || '';
+          rightValue = right.host || '';
+          return String(leftValue).localeCompare(String(rightValue)) * sortOrderFactor;
         case 'type':
           leftValue = left.type || '';
           rightValue = right.type || '';
@@ -223,6 +385,10 @@ const selectedScopeTitle = computed(() => {
 
   if (selectedScope.value === 'untagged') {
     return t('connections.untaggedGroup', '未标记');
+  }
+
+  if (selectedScope.value.startsWith('group:')) {
+    return decodeGroupScopeId(selectedScope.value).replaceAll('/', ' / ');
   }
 
   const selectedTagId = parseInt(selectedScope.value.replace('tag:', ''), 10);
@@ -404,6 +570,14 @@ watch(activeTypeFilter, (newValue) => {
   localStorage.setItem(LS_TYPE_FILTER_KEY, newValue);
 });
 
+watch(
+  expandedTreeNodes,
+  (newValue) => {
+    localStorage.setItem(TREE_EXPANDED_STORAGE_KEY, JSON.stringify(newValue));
+  },
+  { deep: true },
+);
+
 watch([selectedScope, activeTypeFilter, searchQuery], () => {
   if (isBatchEditMode.value) {
     const visibleIds = new Set(filteredAndSortedConnections.value.map((conn) => conn.id));
@@ -417,6 +591,38 @@ watch([selectedScope, activeTypeFilter, searchQuery], () => {
 
 const selectScope = (scopeId: ScopeId) => {
   selectedScope.value = scopeId;
+};
+
+const toggleTreeNode = (nodeId: ScopeId) => {
+  expandedTreeNodes.value[nodeId] = !(expandedTreeNodes.value[nodeId] ?? true);
+};
+
+const handleTreeNodeSelect = (node: TagTreeNode) => {
+  selectScope(node.id);
+  if (node.expandable) {
+    toggleTreeNode(node.id);
+  }
+};
+
+const expandAllTreeNodes = () => {
+  if (!hasExpandableTreeNodes.value) {
+    return;
+  }
+
+  tagsSectionExpanded.value = true;
+  expandedTreeNodes.value = Object.fromEntries(expandableTreeNodeIds.value.map((nodeId) => [nodeId, true]));
+};
+
+const collapseAllTreeNodes = () => {
+  if (!hasExpandableTreeNodes.value) {
+    return;
+  }
+
+  expandedTreeNodes.value = Object.fromEntries(expandableTreeNodeIds.value.map((nodeId) => [nodeId, false]));
+};
+
+const resetScopeSelection = () => {
+  selectScope('all');
 };
 
 const connectTo = (connection: ConnectionInfo) => {
@@ -435,6 +641,16 @@ const openAddConnectionForm = () => {
 const openEditConnectionForm = (connection: ConnectionInfo) => {
   connectionToEdit.value = connection;
   showAddEditConnectionForm.value = true;
+};
+
+const handleSortByColumn = (field: ConnectionSortField) => {
+  if (localSortBy.value === field) {
+    toggleSortOrder();
+    return;
+  }
+
+  localSortBy.value = field;
+  localSortOrder.value = field === 'last_connected_at' ? 'desc' : 'asc';
 };
 
 const handleFormClose = () => {
@@ -561,6 +777,34 @@ const handleBatchDeleteConnections = async () => {
   }
 };
 
+const handleCloneConnection = async (connection: ConnectionInfo) => {
+  const allConnections = connectionsStore.connections;
+  const baseName = connection.name || connection.host;
+  let counter = 1;
+  let newName = `${baseName} (${counter})`;
+
+  while (allConnections.some((item) => item.name === newName)) {
+    counter += 1;
+    newName = `${baseName} (${counter})`;
+  }
+
+  await connectionsStore.cloneConnection(connection.id, newName);
+  await connectionsStore.fetchConnections();
+};
+
+const handleDeleteSingleConnection = async (connection: ConnectionInfo) => {
+  const confirmed = await showConfirmDialog({
+    message: t('connections.prompts.confirmDelete', { name: connection.name || connection.host }),
+  });
+
+  if (!confirmed) {
+    return;
+  }
+
+  await connectionsStore.deleteConnection(connection.id);
+  await connectionsStore.fetchConnections();
+};
+
 const handleTestSingleConnection = async (connection: ConnectionInfo) => {
   if (!connection.id || connection.type !== 'SSH') {
     return;
@@ -636,6 +880,26 @@ const handleConnectAllFilteredConnections = async () => {
     isConnectingAll.value = false;
   }
 };
+
+const toggleMoreMenu = (connectionId: number) => {
+  moreMenuOpenForId.value = moreMenuOpenForId.value === connectionId ? null : connectionId;
+};
+
+const closeMoreMenu = () => {
+  moreMenuOpenForId.value = null;
+};
+
+const handleGlobalClick = () => {
+  closeMoreMenu();
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleGlobalClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleGlobalClick);
+});
 </script>
 
 <template>
@@ -705,28 +969,72 @@ const handleConnectAllFilteredConnections = async () => {
             <section>
               <div class="px-2 mb-2 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary/80">
                 <span>{{ t('connections.table.tags', '标签') }}</span>
-                <span class="text-[11px] tracking-normal normal-case text-text-secondary">{{ tagTreeNodes.length }}</span>
+                <span class="text-[11px] tracking-normal normal-case text-text-secondary">{{ visibleTagTreeNodes.length }}</span>
               </div>
 
-              <div v-show="tagsSectionExpanded" class="space-y-1 max-h-[520px] overflow-y-auto pr-1">
-                <button
-                  v-for="node in tagTreeNodes"
+              <div v-show="tagsSectionExpanded" class="space-y-2">
+                <div class="flex flex-wrap items-center gap-2 px-2">
+                  <button
+                    @click="expandAllTreeNodes"
+                    :disabled="!hasExpandableTreeNodes"
+                    class="h-8 px-2.5 rounded-lg border border-border/60 bg-background text-foreground hover:bg-border transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <i class="fas fa-square-plus"></i>
+                    <span>{{ t('common.expandAll', '展开全部') }}</span>
+                  </button>
+                  <button
+                    @click="collapseAllTreeNodes"
+                    :disabled="!hasExpandableTreeNodes"
+                    class="h-8 px-2.5 rounded-lg border border-border/60 bg-background text-foreground hover:bg-border transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <i class="fas fa-square-minus"></i>
+                    <span>{{ t('common.collapseAll', '收起全部') }}</span>
+                  </button>
+                  <button
+                    @click="resetScopeSelection"
+                    :disabled="selectedScope === 'all'"
+                    class="h-8 px-2.5 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <i class="fas fa-rotate-left"></i>
+                    <span>{{ t('common.reset', '重置范围') }}</span>
+                  </button>
+                </div>
+
+                <div class="px-2 flex items-center justify-between gap-3 text-[11px] text-text-secondary">
+                  <span>{{ t('connections.scopeHintCompact', '树节点按标签路径自动分层') }}</span>
+                  <span>{{ selectedScopeTitle }}</span>
+                </div>
+
+                <div class="space-y-1 max-h-[520px] overflow-y-auto pr-1">
+                <div
+                  v-for="node in visibleTagTreeNodes"
                   :key="node.id"
-                  @click="selectScope(node.id)"
                   :class="[
                     'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
                     getScopeNodeClass(node.id),
                     node.count === 0 ? 'opacity-55' : ''
                   ]"
+                  :style="{ paddingLeft: `${0.75 + node.level * 1.05}rem` }"
                 >
-                  <span class="flex items-center gap-2 min-w-0">
-                    <i class="fas fa-folder-tree w-4 text-center"></i>
-                    <span class="truncate">{{ node.label }}</span>
-                  </span>
-                  <span class="px-2 py-0.5 rounded-full text-xs border border-current/15 bg-black/10">
+                  <button
+                    class="flex items-center gap-2 min-w-0 flex-1"
+                    @click="handleTreeNodeSelect(node)"
+                  >
+                    <i
+                      v-if="node.expandable"
+                      :class="[
+                        'fas w-4 text-center transition-transform duration-150',
+                        (expandedTreeNodes[node.id] ?? true) ? 'fa-chevron-down' : 'fa-chevron-right'
+                      ]"
+                    ></i>
+                    <i v-else class="fas fa-circle text-[8px] w-4 text-center opacity-60"></i>
+                    <span class="truncate" :title="node.fullLabel">{{ node.label }}</span>
+                  </button>
+                  <span class="px-2 py-0.5 rounded-full text-xs border border-current/15 bg-black/10 flex-shrink-0">
                     {{ node.count }}
                   </span>
-                </button>
+                </div>
+                </div>
               </div>
             </section>
           </div>
@@ -891,11 +1199,20 @@ const handleConnectAllFilteredConnections = async () => {
             </div>
 
             <div v-else class="min-w-0">
-              <div class="hidden xl:grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_160px_220px] gap-4 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary border-b border-border/50 bg-background/40 sticky top-0 z-10">
-                <div>{{ t('connections.table.name', '名称') }}</div>
-                <div>{{ t('connections.table.host', '地址') }}</div>
+              <div class="hidden xl:grid grid-cols-[minmax(0,2.25fr)_minmax(0,1.45fr)_minmax(0,1.25fr)_160px_170px] gap-4 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary border-b border-border/50 bg-background/40 sticky top-0 z-10">
+                <button class="flex items-center gap-2 text-left hover:text-foreground transition-colors" @click="handleSortByColumn('name')">
+                  <span>{{ t('connections.table.name', '名称') }}</span>
+                  <i v-if="localSortBy === 'name'" :class="['fas', isAscending ? 'fa-arrow-up-short-wide' : 'fa-arrow-down-wide-short']"></i>
+                </button>
+                <button class="flex items-center gap-2 text-left hover:text-foreground transition-colors" @click="handleSortByColumn('host')">
+                  <span>{{ t('connections.table.host', '地址') }}</span>
+                  <i v-if="localSortBy === 'host'" :class="['fas', isAscending ? 'fa-arrow-up-short-wide' : 'fa-arrow-down-wide-short']"></i>
+                </button>
                 <div>{{ t('connections.table.tags', '标签 / 备注') }}</div>
-                <div>{{ t('dashboard.lastConnected', '上次连接') }}</div>
+                <button class="flex items-center gap-2 text-left hover:text-foreground transition-colors" @click="handleSortByColumn('last_connected_at')">
+                  <span>{{ t('dashboard.lastConnected', '上次连接') }}</span>
+                  <i v-if="localSortBy === 'last_connected_at'" :class="['fas', isAscending ? 'fa-arrow-up-short-wide' : 'fa-arrow-down-wide-short']"></i>
+                </button>
                 <div>{{ t('connections.table.actions', '操作') }}</div>
               </div>
 
@@ -910,7 +1227,7 @@ const handleConnectAllFilteredConnections = async () => {
                     isBatchEditMode && isConnectionSelectedForBatch(conn.id) ? 'bg-primary/10' : ''
                   ]"
                 >
-                  <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_160px_220px] gap-4 items-start">
+                  <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,2.25fr)_minmax(0,1.45fr)_minmax(0,1.25fr)_160px_170px] gap-4 items-start">
                     <div class="min-w-0 flex items-start gap-3">
                       <input
                         v-if="isBatchEditMode"
@@ -997,27 +1314,7 @@ const handleConnectAllFilteredConnections = async () => {
                       </div>
                     </div>
 
-                    <div class="flex flex-wrap justify-start xl:justify-end gap-2">
-                      <button
-                        v-if="conn.type === 'SSH'"
-                        @click.stop="handleTestSingleConnection(conn)"
-                        :disabled="isBatchEditMode || getSingleTestButtonInfo(conn.id, conn.type).disabled"
-                        class="px-3 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 text-sm"
-                        :title="getSingleTestButtonInfo(conn.id, conn.type).title"
-                      >
-                        <i :class="getSingleTestButtonInfo(conn.id, conn.type).iconClass"></i>
-                        <span>{{ getSingleTestButtonInfo(conn.id, conn.type).text }}</span>
-                      </button>
-
-                      <button
-                        @click.stop="openEditConnectionForm(conn)"
-                        :disabled="isBatchEditMode"
-                        class="px-3 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 text-sm"
-                      >
-                        <i class="fas fa-pen"></i>
-                        <span>{{ t('connections.actions.edit', '编辑') }}</span>
-                      </button>
-
+                    <div class="flex flex-wrap justify-start xl:justify-end gap-2 relative">
                       <button
                         @click.stop="connectTo(conn)"
                         :disabled="isBatchEditMode"
@@ -1026,6 +1323,55 @@ const handleConnectAllFilteredConnections = async () => {
                         <i class="fas fa-arrow-right-to-bracket"></i>
                         <span>{{ t('connections.actions.connect', '连接') }}</span>
                       </button>
+
+                      <div class="relative">
+                        <button
+                          @click.stop="toggleMoreMenu(conn.id)"
+                          :disabled="isBatchEditMode"
+                          class="px-3 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-border transition-colors inline-flex items-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <i class="fas fa-ellipsis"></i>
+                          <span>{{ t('common.more', '更多') }}</span>
+                        </button>
+
+                        <div
+                          v-if="moreMenuOpenForId === conn.id"
+                          class="absolute right-0 top-full mt-2 w-48 rounded-xl border border-border bg-background shadow-xl z-20 overflow-hidden"
+                          @click.stop
+                        >
+                          <button
+                            class="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-header transition-colors flex items-center gap-2"
+                            @click.stop="openEditConnectionForm(conn); closeMoreMenu()"
+                          >
+                            <i class="fas fa-pen w-4 text-center"></i>
+                            <span>{{ t('connections.actions.edit', '编辑') }}</span>
+                          </button>
+                          <button
+                            v-if="conn.type === 'SSH'"
+                            :disabled="getSingleTestButtonInfo(conn.id, conn.type).disabled"
+                            :title="getSingleTestButtonInfo(conn.id, conn.type).title"
+                            class="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-header transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            @click.stop="handleTestSingleConnection(conn); closeMoreMenu()"
+                          >
+                            <i :class="[getSingleTestButtonInfo(conn.id, conn.type).iconClass, 'w-4 text-center']"></i>
+                            <span>{{ getSingleTestButtonInfo(conn.id, conn.type).text }}</span>
+                          </button>
+                          <button
+                            class="w-full px-3 py-2 text-left text-sm text-foreground hover:bg-header transition-colors flex items-center gap-2"
+                            @click.stop="handleCloneConnection(conn); closeMoreMenu()"
+                          >
+                            <i class="fas fa-clone w-4 text-center"></i>
+                            <span>{{ t('connections.actions.clone', '克隆') }}</span>
+                          </button>
+                          <button
+                            class="w-full px-3 py-2 text-left text-sm text-error hover:bg-error/10 transition-colors flex items-center gap-2"
+                            @click.stop="handleDeleteSingleConnection(conn); closeMoreMenu()"
+                          >
+                            <i class="fas fa-trash-alt w-4 text-center"></i>
+                            <span>{{ t('connections.actions.delete', '删除') }}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </li>

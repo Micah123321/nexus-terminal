@@ -64,6 +64,39 @@ const showConnectionListPopup = ref(false); // 连接列表弹出状态
 const draggableSessions = ref<SessionTabInfoWithStatus[]>([]); // + Local state for draggable
 const showTransferProgressModal = ref(false); // 控制传输进度模态框的显示状态
 
+const activeSessionState = computed(() => {
+  if (!props.activeSessionId) {
+    return null;
+  }
+
+  return sessionStore.sessions.get(props.activeSessionId) ?? null;
+});
+
+const activeConnectionInfo = computed(() => {
+  const activeSession = activeSessionState.value;
+  if (!activeSession) {
+    return null;
+  }
+
+  return connectionsStore.connections.find((connection) => connection.id === Number(activeSession.connectionId)) ?? null;
+});
+
+const canAddTerminalToActiveConnection = computed(() => activeConnectionInfo.value?.type === 'SSH');
+
+const openNewTerminalForActiveConnection = () => {
+  const activeConnection = activeConnectionInfo.value;
+  if (!activeConnection || activeConnection.type !== 'SSH') {
+    showConnectionListPopup.value = true;
+    return;
+  }
+
+  sessionStore.handleOpenNewSession(activeConnection.id);
+};
+
+const openConnectionPicker = () => {
+  showConnectionListPopup.value = true;
+};
+
 // + Watch prop changes to update local state
 watch(() => props.sessions, (newSessions) => {
   // Create a shallow copy to avoid modifying the prop directly
@@ -174,6 +207,22 @@ const handleContextMenuAction = (payload: { action: string; targetId: string | n
       // 注意：关闭左侧通常不包括当前标签本身
       emitWorkspaceEvent('session:closeToLeft', { targetSessionId: targetId });
       break;
+    case 'new-terminal': {
+      const targetSessionState = sessionStore.sessions.get(targetId);
+      if (!targetSessionState) {
+        console.warn(`[TabBar] 'new-terminal' action failed: session ${targetId} not found.`);
+        break;
+      }
+
+      const targetConnectionInfo = connectionsStore.connections.find(c => c.id === Number(targetSessionState.connectionId));
+      if (!targetConnectionInfo || targetConnectionInfo.type !== 'SSH') {
+        console.warn(`[TabBar] 'new-terminal' action ignored for non-SSH connection. targetId=${targetId}`);
+        break;
+      }
+
+      sessionStore.handleOpenNewSession(targetConnectionInfo.id);
+      break;
+    }
     case 'mark-for-suspend': // +++ 修改 action 名称 +++
       if (typeof targetId === 'string') {
         console.log(`[TabBar] Context menu action 'mark-for-suspend' requested for session ID: ${targetId}`);
@@ -213,6 +262,7 @@ const contextMenuItems = computed(() => {
 
   // 添加标记/取消标记挂起会话菜单项（如果适用）
   if (connectionInfo && connectionInfo.type === 'SSH') {
+    items.push({ label: 'terminalTabBar.newTerminalTooltip', action: 'new-terminal' });
     const isActiveSession = targetSessionState.wsManager.isConnected.value;
     if (isActiveSession) { // 只对活动的SSH会话显示相关操作
       if (targetSessionState.isMarkedForSuspend) {
@@ -446,6 +496,12 @@ onBeforeUnmount(() => {
                          session.status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
                          session.status === 'disconnected' ? 'bg-red-500' : 'bg-gray-400']"></span>
           <span class="truncate text-sm" style="transform: translateY(-1px);">{{ session.connectionName }}</span>
+          <span
+            class="ml-2 inline-flex flex-shrink-0 items-center rounded-full border border-border px-1.5 py-0.5 text-[11px] leading-none text-text-secondary"
+            :title="t('terminalTabBar.terminalBadge', { index: session.terminalIndex })"
+          >
+            {{ session.terminalIndex }}
+          </span>
           <button class="ml-2 p-0.5 rounded-full text-text-secondary hover:bg-border hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                   :class="{'text-foreground hover:bg-header': session.sessionId === activeSessionId}"
                   @click="closeSession($event, session.sessionId)" :title="$t('tabs.closeTabTooltip')">
@@ -456,10 +512,17 @@ onBeforeUnmount(() => {
           </li>
         </template>
       </draggable>
-      <!-- Add Tab Button -->
-      <button class="flex items-center justify-center px-3 h-full border-border text-text-secondary hover:bg-border hover:text-foreground transition-colors duration-150 flex-shrink-0"
-              @click="togglePopup" :title="$t('tabs.newTabTooltip')">
+      <!-- Add Terminal Button -->
+      <button
+              class="flex items-center justify-center px-3 h-full border-border text-text-secondary hover:bg-border hover:text-foreground transition-colors duration-150 flex-shrink-0"
+              @click="openNewTerminalForActiveConnection"
+              :title="canAddTerminalToActiveConnection ? t('terminalTabBar.newTerminalTooltip') : t('tabs.newTabTooltip')">
         <i class="fas fa-plus text-sm"></i>
+      </button>
+      <!-- Open Connection Picker Button -->
+      <button class="flex items-center justify-center px-3 h-full border-border text-text-secondary hover:bg-border hover:text-foreground transition-colors duration-150 flex-shrink-0"
+              @click="openConnectionPicker" :title="t('terminalTabBar.openConnectionPickerTooltip')">
+        <i class="fas fa-server text-sm"></i>
       </button>
     </div>
     <!-- Action Buttons -->

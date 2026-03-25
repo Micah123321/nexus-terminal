@@ -1457,7 +1457,10 @@
   },
   "terminalTabBar": {
     "selectServerTitle": "Select server to connect",
-    "showTransferProgressTooltip": "Show/Hide Transfer Progress"
+    "showTransferProgressTooltip": "Show/Hide Transfer Progress",
+    "newTerminalTooltip": "Open another terminal for the current server",
+    "openConnectionPickerTooltip": "Choose another server",
+    "terminalBadge": "Terminal {index}"
   },
   "tabs": {
     "contextMenu": {

@@ -29,6 +29,7 @@ export interface SessionState {
   sessionId: string;
   connectionId: string; // 数据库中的连接 ID
   connectionName: string; // 用于显示
+  terminalIndex: number; // 同一连接下的终端序号，从 1 开始
   wsManager: WsManagerInstance;
   sftpManagers: Map<string, SftpManagerInstance>; // 使用 Map 管理多个实例
   terminalManager: SshTerminalInstance;
@@ -49,7 +50,9 @@ export interface SessionState {
 // 为标签栏定义包含状态的类型
 export interface SessionTabInfoWithStatus {
   sessionId: string;
+  connectionId: string;
   connectionName: string;
+  terminalIndex: number;
   status: WsConnectionStatus; // 添加状态字段
   isMarkedForSuspend?: boolean; // +++ 用于UI指示会话是否已标记待挂起 +++
 }

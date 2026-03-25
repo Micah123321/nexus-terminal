@@ -22,3 +22,7 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 - **[frontend]**: 将连接管理页升级为左侧标签树、顶部搜索工具条和右侧结果列表的双栏管理台 — by yinjianm
   - 方案: [202603250636_connections-view-tree-search-redesign](archive/2026-03/202603250636_connections-view-tree-search-redesign/)
+- **[frontend]**: 为连接管理页补充多级标签树、列头排序和行级更多菜单，并支持分组范围与展开状态持久化 — by yinjianm
+  - 方案: [202603252152_connections-tree-sort-more-menu](archive/2026-03/202603252152_connections-tree-sort-more-menu/)
+- **[frontend]**: 为同一 SSH 服务器连接补充多终端入口与终端序号标识，默认首次仍只打开一个终端 — by yinjianm
+  - 方案: [202603252207_ssh-connection-multi-terminal](archive/2026-03/202603252207_ssh-connection-multi-terminal/)

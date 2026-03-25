@@ -1419,7 +1419,10 @@
       },
       "terminalTabBar": {
           "selectServerTitle": "接続するサーバーを選択",
-          "showTransferProgressTooltip": "転送進捗の表示/非表示"
+          "showTransferProgressTooltip": "転送進捗の表示/非表示",
+          "newTerminalTooltip": "現在のサーバーに新しいターミナルを追加",
+          "openConnectionPickerTooltip": "別のサーバーを選択",
+          "terminalBadge": "端末 {index}"
       },
       "workspace": {
         "terminal": {
