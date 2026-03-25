@@ -4,9 +4,17 @@ export interface ServerStatus {
     memPercent?: number;
     memUsed?: number; // MB
     memTotal?: number; // MB
+    memFree?: number; // MB
+    memCached?: number; // MB
     diskPercent?: number;
     diskUsed?: number; // KB
     diskTotal?: number; // KB
+    diskAvailable?: number; // KB
+    diskMountPoint?: string;
+    diskFsType?: string;
+    diskDevice?: string;
+    diskReadRate?: number; // Bytes/sec
+    diskWriteRate?: number; // Bytes/sec
     cpuModel?: string;
     swapPercent?: number;
     swapUsed?: number; // MB

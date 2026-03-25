@@ -36,7 +36,7 @@
 
 ### 工作区交互
 **条件**: 用户进入 `/workspace` 或相关管理页面。  
-**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值；`Terminal.vue` 会跟踪 xterm 的视口行号与贴底状态，在终端标签切换、重新激活和 `fit()` 后按原滚动意图恢复，并在渲染层为带 `xterm-fg-*` class 或内联 `style.color` 的显式前景色字符打标记，让终端文字描边/阴影仅作用于默认前景文本，不覆盖 ANSI 彩色输出；`session.store` 当前会为同一 SSH 连接下的新终端分配递增的 `terminalIndex`，`TerminalTabBar.vue` 则把当前连接“继续新增终端”和“改连其他服务器”拆成独立入口，并在标签上显示终端序号，从而实现“单连接默认 1 个终端、可继续追加多个终端”的交互；`ConnectionsView.vue` 已升级为“左侧范围树 + 顶部搜索工具条 + 右侧结果列表”的双栏管理台，当前左侧进一步支持基于标签名路径分隔符推导的多级标签树、树节点展开状态持久化和分组 scope 恢复，右侧结果列表则同时支持顶部排序控件、列头点击排序和行级“更多”菜单（克隆/删除）；样式编辑器中的终端文字描边/阴影默认开关也已与新的黑绿终端风格保持默认开启。  
+**行为**: 通过组件、Pinia 与 composable 协同管理终端、文件管理、命令历史、布局配置、主题和状态监控；当前 `/workspace` 默认主布局为“左侧 Workbench、中央终端、右侧状态监控”，其中 Workbench 以 tab 容器整合快捷指令、命令历史、文件管理和编辑器，默认激活快捷指令。`QuickCommandsView.vue` 内的新增按钮、空状态按钮和列表操作按钮统一复用 `bg-button`、`text-button-text`、`hover:bg-button-hover`、`hover:bg-border` 等主题变量类，避免写死黑白 hover 色值；`Terminal.vue` 会跟踪 xterm 的视口行号与贴底状态，在终端标签切换、重新激活和 `fit()` 后按原滚动意图恢复，并在渲染层为带 `xterm-fg-*` class 或内联 `style.color` 的显式前景色字符打标记，让终端文字描边/阴影仅作用于默认前景文本，不覆盖 ANSI 彩色输出；`session.store` 当前会为同一 SSH 连接下的新终端分配递增的 `terminalIndex`，`TerminalTabBar.vue` 则进一步把连续同连接会话渲染成“服务器组头 + 终端子标签 + 组尾新增按钮”，全局 `+` 只负责选择其他服务器，从而让“单连接默认 1 个终端、可继续追加多个终端”的关系在顶部标签栏里更接近参考图；`ConnectionsView.vue` 已升级为“左侧范围树 + 顶部搜索工具条 + 右侧结果列表”的双栏管理台，当前左侧进一步支持基于标签名路径分隔符推导的多级标签树、树节点展开状态持久化、分组 scope 恢复，以及树工具栏中的展开全部、收起全部和重置范围控制；右侧结果列表则同时支持顶部排序控件、列头点击排序，并将行内操作整理为“连接”主按钮加“更多”菜单（编辑/测试/克隆/删除）；样式编辑器中的终端文字描边/阴影默认开关也已与新的黑绿终端风格保持默认开启。  
 **结果**: 页面逻辑分散在 `views/`、`components/`、`stores/` 与 `composables/`，其中工作区终端行为和标签交互优先落在 `session.store.ts`、`session/actions/sessionActions.ts`、`session/getters.ts`、`TerminalTabBar.vue`、`WorkspaceView.vue`、`Terminal.vue` 与相关 locale 文件。
 
 ## 依赖关系
@@ -45,3 +45,8 @@
 依赖: workspace-root, backend, remote-gateway, vue-router, pinia
 被依赖: 无
 ```
+
+### 状态监控卡片
+**条件**: 用户在 `/workspace` 右侧状态监控面板查看服务器资源状态。  
+**行为**: `StatusMonitor.vue` 当前将内存与磁盘区域升级为卡片化监控视图：内存卡片展示总量、已用、缓存、空闲和环形占比，磁盘卡片展示设备名、文件系统类型、读写速率以及挂载点/大小/可用/已用率表格；CPU、Swap、网络速率和 `StatusCharts.vue` 的 CPU / 网络曲线继续保留。  
+**结果**: 状态监控从“简单进度行”升级为“高信息密度卡片”，并直接承接后端新增的内存细分字段与磁盘元数据。

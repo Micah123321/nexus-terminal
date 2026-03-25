@@ -55,3 +55,8 @@
 依赖: workspace-root, sqlite(data), express-session, ssh2, ws
 被依赖: frontend
 ```
+
+### 状态监控字段扩展
+**条件**: `StatusMonitorService` 为前端工作区持续轮询服务器状态。  
+**行为**: 当前状态采集链路除 `free`、`df`、`/proc/stat` 与 `/proc/net/dev` 外，还会补充解析 `memFree`、`memCached`、`diskAvailable`、`diskMountPoint`、`diskFsType`、`diskDevice`，并基于 `/proc/diskstats` 计算根设备的磁盘读写速率；设备名会尽量从分区名规整到块设备名，无法获取的字段则按 `undefined` 降级。  
+**结果**: 前端状态监控可以直接展示参考图风格的内存/磁盘卡片，而不需要再自行推导缓存、空闲和磁盘元信息。
