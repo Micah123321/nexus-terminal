@@ -1,5 +1,10 @@
 import JSZip from 'jszip';
 
+export interface FolderArchiveSource {
+  file: File;
+  relativePath: string;
+}
+
 export interface FolderArchiveResult {
   archiveFile: File;
   folderName: string;
@@ -23,22 +28,33 @@ const getFolderNameFromRelativePath = (relativePath: string): string => {
 };
 
 export const createFolderArchive = async (
-  selectedFiles: File[] | FileList,
+  selectedFiles: File[] | FileList | FolderArchiveSource[],
   onProgress?: (percent: number) => void,
 ): Promise<FolderArchiveResult> => {
-  const files = Array.from(selectedFiles).filter((file) => {
-    return Boolean(file.webkitRelativePath && file.webkitRelativePath.includes('/'));
-  });
+  const entries: Array<File | FolderArchiveSource> = Array.isArray(selectedFiles)
+    ? selectedFiles
+    : Array.from(selectedFiles);
+
+  const files = entries
+    .map<FolderArchiveSource | null>((entry) => {
+      if (entry instanceof File) {
+        const relativePath = entry.webkitRelativePath?.replace(/\\/g, '/');
+        return relativePath && relativePath.includes('/') ? { file: entry, relativePath } : null;
+      }
+
+      const relativePath = entry.relativePath.replace(/\\/g, '/');
+      return relativePath && relativePath.includes('/') ? { file: entry.file, relativePath } : null;
+    })
+    .filter((entry): entry is FolderArchiveSource => entry !== null);
 
   if (files.length === 0) {
     throw new Error('No folder files were selected.');
   }
 
-  const folderName = getFolderNameFromRelativePath(files[0].webkitRelativePath);
+  const folderName = getFolderNameFromRelativePath(files[0].relativePath);
   const zip = new JSZip();
 
-  files.forEach((file) => {
-    const relativePath = file.webkitRelativePath.replace(/\\/g, '/');
+  files.forEach(({ file, relativePath }) => {
     zip.file(relativePath, file);
   });
 

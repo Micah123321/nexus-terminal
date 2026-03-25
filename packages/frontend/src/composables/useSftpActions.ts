@@ -112,6 +112,8 @@ export function createSftpActionsManager(
     // const fileList = ref<FileListItem[]>([]); // 不再直接使用 fileList ref
     const isLoading = ref<boolean>(false);
     const loadingRequestId = ref<string | null>(null); // 跟踪当前加载请求 ID
+    const loadingPath = ref<string | null>(null);
+    const pendingPathAfterRootBootstrap = ref<string | null>(null);
     // const error = ref<string | null>(null); // 不再使用本地 error ref
     const instanceSessionId = sessionId; // 保存会话 ID 用于日志
     const uiNotificationsStore = useUiNotificationsStore(); // 初始化 UI 通知 store
@@ -242,6 +244,24 @@ export function createSftpActionsManager(
     };
 
     const loadDirectory = (path: string, forceRefresh: boolean = false) => { // 添加 forceRefresh 参数
+        const needsRootBootstrap = path !== '/' && !fileTree.childrenLoaded;
+        if (needsRootBootstrap) {
+            pendingPathAfterRootBootstrap.value = path;
+
+            if (isLoading.value) {
+                if (loadingPath.value === '/') {
+                    console.log(`[SFTP ${instanceSessionId}] Root bootstrap already in progress. Queued target path: ${path}`);
+                    return;
+                }
+                console.warn(`[SFTP ${instanceSessionId}] Tried to queue target path ${path} while loading ${loadingPath.value}.`);
+                return;
+            }
+
+            console.log(`[SFTP ${instanceSessionId}] Bootstrapping root tree before loading target path: ${path}`);
+            path = '/';
+            forceRefresh = false;
+        }
+
         // *** 修改：检查文件树 ***
         const targetNode = findNodeByPath(fileTree, path);
 
@@ -285,6 +305,7 @@ export function createSftpActionsManager(
         // currentPathRef.value = path; // <-- 移除此行，延迟更新
         const requestId = generateRequestId();
         loadingRequestId.value = requestId; // 记录当前加载请求 ID
+        loadingPath.value = path;
         sendMessage({ type: 'sftp:readdir', requestId: requestId, payload: { path } });
     };
 
@@ -700,8 +721,10 @@ export function createSftpActionsManager(
             return;
         }
 
+        const isLatestRequest = message.requestId === loadingRequestId.value;
+
         // 检查请求 ID 是否匹配当前加载请求
-        if (message.requestId !== loadingRequestId.value) {
+        if (!isLatestRequest) {
             console.log(`[SFTP ${instanceSessionId}] Received stale readdir success for ${path} (ID: ${message.requestId}, expected: ${loadingRequestId.value}). Ignoring.`);
             return; // 忽略过时的响应
         }
@@ -772,14 +795,29 @@ export function createSftpActionsManager(
         targetNode.childrenLoaded = true;
         console.log(`[SFTP ${instanceSessionId}] File tree node ${path}'s children updated after merge.`);
 
-        // *** 在成功加载并更新树之后，才更新当前路径 ***
-        currentPathRef.value = path;
-        console.log(`[SFTP ${instanceSessionId}] currentPathRef updated to ${path} after successful readdir.`);
+        const queuedPath = path === '/' ? pendingPathAfterRootBootstrap.value : null;
+        const shouldContinueToQueuedPath = Boolean(queuedPath && queuedPath !== '/');
+        if (shouldContinueToQueuedPath) {
+            pendingPathAfterRootBootstrap.value = null;
+        }
+
+        if (!shouldContinueToQueuedPath) {
+            // *** 在成功加载并更新树之后，才更新当前路径 ***
+            currentPathRef.value = path;
+            console.log(`[SFTP ${instanceSessionId}] currentPathRef updated to ${path} after successful readdir.`);
+        } else {
+            console.log(`[SFTP ${instanceSessionId}] Root tree bootstrap completed. Will continue loading queued path: ${queuedPath}`);
+        }
 
         // 重置加载状态，因为这是匹配的响应
         isLoading.value = false;
         loadingRequestId.value = null;
+        loadingPath.value = null;
         console.log(`[SFTP ${instanceSessionId}] isLoading reset after successful readdir for ${path}.`);
+
+        if (shouldContinueToQueuedPath && queuedPath) {
+            loadDirectory(queuedPath);
+        }
     };
 
     const onSftpReaddirError = (payload: MessagePayload, message: WebSocketMessage) => {
@@ -800,6 +838,7 @@ export function createSftpActionsManager(
         // 重置加载状态，因为这是匹配的响应
         isLoading.value = false;
         loadingRequestId.value = null;
+        loadingPath.value = null;
         console.log(`[SFTP ${instanceSessionId}] isLoading reset after failed readdir for ${errorPath}.`);
     };
 

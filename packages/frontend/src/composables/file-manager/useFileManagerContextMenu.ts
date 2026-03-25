@@ -106,14 +106,17 @@ export function useFileManagerContextMenu(options: UseFileManagerContextMenuOpti
   const showContextMenu = (event: MouseEvent, item?: FileListItem) => {
     event.preventDefault();
     const targetItem = item || null;
+    const targetItemIndex = targetItem
+      ? fileList.value.findIndex((f: FileListItem) => f.filename === targetItem.filename)
+      : -1;
+    const isExternalTreeItem = Boolean(targetItem && targetItemIndex === -1 && typeof targetItem.longname === 'string' && targetItem.longname.startsWith('/'));
 
     // Adjust selection based on right-click target (逻辑保持不变)
-    if (targetItem && !event.ctrlKey && !event.metaKey && !event.shiftKey && !selectedItems.value.has(targetItem.filename)) {
+    if (targetItem && !isExternalTreeItem && !event.ctrlKey && !event.metaKey && !event.shiftKey && !selectedItems.value.has(targetItem.filename)) {
         selectedItems.value.clear();
         selectedItems.value.add(targetItem.filename);
         // 使用传入的 fileList ref
-        const index = fileList.value.findIndex((f: FileListItem) => f.filename === targetItem.filename); // 添加类型
-        lastClickedIndex.value = index;
+        lastClickedIndex.value = targetItemIndex;
     } else if (!targetItem) {
         selectedItems.value.clear();
         lastClickedIndex.value = -1;

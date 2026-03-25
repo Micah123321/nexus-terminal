@@ -13,7 +13,7 @@ import { useFileManagerContextMenu, type ClipboardState, type CompressFormat } f
 import { useFileManagerSelection } from '../composables/file-manager/useFileManagerSelection';
 import { useFileManagerDragAndDrop } from '../composables/file-manager/useFileManagerDragAndDrop';
 import { useFileManagerKeyboardNavigation } from '../composables/file-manager/useFileManagerKeyboardNavigation';
-import { createFolderArchive } from '../composables/file-manager/useFolderArchiveUpload';
+import { createFolderArchive, type FolderArchiveSource } from '../composables/file-manager/useFolderArchiveUpload';
 import FileUploadPopup from './FileUploadPopup.vue';
 import FileManagerContextMenu from './FileManagerContextMenu.vue';
 import FileManagerActionModal from './FileManagerActionModal.vue';
@@ -153,6 +153,7 @@ const isFolderUploadBusy = ref(false);
 const showFavoritePathsModal = ref(false);
 const favoritePathsButtonRef = ref<HTMLButtonElement | null>(null); // Ref for the trigger button
 const explorerExpandedPaths = ref<Record<string, boolean>>({});
+const selectedExplorerPath = ref<string | null>(null);
 
 // +++ Path History Refs +++
 const showPathHistoryDropdown = ref(false);
@@ -283,6 +284,30 @@ const openFileInWorkspace = (filePath: string, filename: string) => {
     sessionStore.openFileInSession(props.sessionId, fileInfo);
   }
 };
+
+const getItemAbsolutePath = (item: FileListItem): string => {
+  if (typeof item.longname === 'string' && item.longname.startsWith('/')) {
+    return item.longname;
+  }
+
+  return currentSftpManager.value?.joinPath(currentSftpManager.value.currentPath.value, item.filename) ?? item.filename;
+};
+
+const getParentPath = (path: string): string => {
+  if (!path || path === '/') {
+    return '/';
+  }
+
+  const normalized = path.endsWith('/') ? path.slice(0, -1) : path;
+  const lastSlashIndex = normalized.lastIndexOf('/');
+  return lastSlashIndex <= 0 ? '/' : normalized.slice(0, lastSlashIndex);
+};
+
+const createContextMenuItemFromTreeRow = (row: ExplorerTreeRow): FileListItem => ({
+  filename: row.name,
+  longname: row.path,
+  attrs: row.item.attrs,
+});
 
 const explorerTreeRows = computed<ExplorerTreeRow[]>(() => {
   const rows: ExplorerTreeRow[] = [];
@@ -725,19 +750,36 @@ const handleModalConfirm = (value?: string) => {
  switch (currentActionType.value) {
    case 'delete':
      if (actionItems.value.length > 0) {
-       manager.deleteItems(actionItems.value);
+       actionItems.value.forEach((item) => {
+         const targetPath = getItemAbsolutePath(item);
+         props.wsDeps.sendMessage({
+           type: item.attrs.isDirectory ? 'sftp:rmdir' : 'sftp:unlink',
+           requestId: generateRequestId(),
+           payload: { path: targetPath },
+         });
+       });
        selectedItems.value.clear(); // Clear selection after delete
      }
      break;
    case 'rename':
      if (actionItem.value && value && value !== actionItem.value.filename) {
-       manager.renameItem(actionItem.value, value);
+       const oldPath = getItemAbsolutePath(actionItem.value);
+       const newPath = value.startsWith('/') ? value : `${getParentPath(oldPath)}/${value}`.replace(/\/+/g, '/');
+       props.wsDeps.sendMessage({
+         type: 'sftp:rename',
+         requestId: generateRequestId(),
+         payload: { oldPath, newPath },
+       });
      }
      break;
    case 'chmod':
      if (actionItem.value && value && /^[0-7]{3,4}$/.test(value)) {
        const newMode = parseInt(value, 8);
-       manager.changePermissions(actionItem.value, newMode);
+       props.wsDeps.sendMessage({
+         type: 'sftp:chmod',
+         requestId: generateRequestId(),
+         payload: { path: getItemAbsolutePath(actionItem.value), mode: newMode },
+       });
      } else if (value) { // value exists but is invalid
        // Optionally, re-open modal with error or use a notification
        // For now, just log and close
@@ -774,10 +816,14 @@ const handleDeleteSelectedClick = () => {
     // 修改：检查 currentSftpManager 是否存在
     if (!currentSftpManager.value) return;
     // 使用 props.wsDeps 和 currentSftpManager.value.fileList
-    if (!props.wsDeps.isConnected.value || selectedItems.value.size === 0) return;
-    const itemsToDelete = Array.from(selectedItems.value)
+    if (!props.wsDeps.isConnected.value) return;
+    const selectedListItems = Array.from(selectedItems.value)
                                .map(filename => currentSftpManager.value?.fileList.value.find((f: FileListItem) => f.filename === filename))
                                .filter((item): item is FileListItem => item !== undefined);
+    const itemsToDelete =
+      selectedListItems.length > 0
+        ? selectedListItems
+        : (contextTargetItem.value ? [contextTargetItem.value] : []);
    if (itemsToDelete.length === 0) return;
  
     // 根据设置决定是否显示确认模态框
@@ -786,7 +832,14 @@ const handleDeleteSelectedClick = () => {
     } else {
         // 直接执行删除
         if (currentSftpManager.value) {
-            currentSftpManager.value.deleteItems(itemsToDelete);
+            itemsToDelete.forEach((item) => {
+                const targetPath = getItemAbsolutePath(item);
+                props.wsDeps.sendMessage({
+                  type: item.attrs.isDirectory ? 'sftp:rmdir' : 'sftp:unlink',
+                  requestId: generateRequestId(),
+                  payload: { path: targetPath },
+                });
+            });
             selectedItems.value.clear(); // Clear selection after delete
         }
     }
@@ -819,23 +872,33 @@ const handleNewFileContextMenuClick = () => {
 
 // +++ 复制、剪切、粘贴处理函数 +++
 const handleCopy = () => {
-    if (!currentSftpManager.value || selectedItems.value.size === 0) return;
-    const manager = currentSftpManager.value;
-    clipboardSourcePaths.value = Array.from(selectedItems.value)
-        .map(filename => manager.joinPath(manager.currentPath.value, filename));
+    if (!currentSftpManager.value) return;
+    const selectedFileItems =
+      selectedItems.value.size > 0
+        ? Array.from(selectedItems.value)
+            .map(filename => currentSftpManager.value?.fileList.value.find((f: FileListItem) => f.filename === filename))
+            .filter((item): item is FileListItem => item !== undefined)
+        : (contextTargetItem.value ? [contextTargetItem.value] : []);
+    if (selectedFileItems.length === 0) return;
+    clipboardSourcePaths.value = selectedFileItems.map((item) => getItemAbsolutePath(item));
     clipboardState.value = { hasContent: true, operation: 'copy' };
-    clipboardSourceBaseDir.value = manager.currentPath.value; // 记录源目录
+    clipboardSourceBaseDir.value = getParentPath(clipboardSourcePaths.value[0] || currentSftpManager.value.currentPath.value); // 记录源目录
     console.log(`[FileManager ${props.sessionId}-${props.instanceId}] Copied to clipboard:`, clipboardSourcePaths.value);
     // 可选：添加 UI 通知
 };
 
 const handleCut = () => {
-    if (!currentSftpManager.value || selectedItems.value.size === 0) return;
-    const manager = currentSftpManager.value;
-    clipboardSourcePaths.value = Array.from(selectedItems.value)
-        .map(filename => manager.joinPath(manager.currentPath.value, filename));
+    if (!currentSftpManager.value) return;
+    const selectedFileItems =
+      selectedItems.value.size > 0
+        ? Array.from(selectedItems.value)
+            .map(filename => currentSftpManager.value?.fileList.value.find((f: FileListItem) => f.filename === filename))
+            .filter((item): item is FileListItem => item !== undefined)
+        : (contextTargetItem.value ? [contextTargetItem.value] : []);
+    if (selectedFileItems.length === 0) return;
+    clipboardSourcePaths.value = selectedFileItems.map((item) => getItemAbsolutePath(item));
     clipboardState.value = { hasContent: true, operation: 'cut' };
-    clipboardSourceBaseDir.value = manager.currentPath.value; // 记录源目录
+    clipboardSourceBaseDir.value = getParentPath(clipboardSourcePaths.value[0] || currentSftpManager.value.currentPath.value); // 记录源目录
     console.log(`[FileManager ${props.sessionId}-${props.instanceId}] Cut to clipboard:`, clipboardSourcePaths.value);
     // 可选：添加 UI 通知
 };
@@ -882,20 +945,18 @@ const triggerFolderUpload = () => {
   folderInputRef.value?.click();
 };
 
-const getFolderUploadName = (files: File[]) => {
-  const firstRelativePath = files[0]?.webkitRelativePath || files[0]?.name || 'folder';
+const getFolderUploadName = (files: Array<File | FolderArchiveSource>) => {
+  const firstItem = files[0];
+  const firstRelativePath = firstItem instanceof File
+    ? firstItem.webkitRelativePath || firstItem.name || 'folder'
+    : firstItem?.relativePath || 'folder';
   return firstRelativePath.split('/').filter(Boolean)[0] || 'folder';
 };
 
-const handleFolderSelected = async (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const files = input.files ? Array.from(input.files) : [];
-  input.value = '';
-
-  if (files.length === 0) {
-    return;
-  }
-
+const startFolderArchiveUpload = async (
+  files: File[] | FolderArchiveSource[],
+  targetPath?: string,
+) => {
   if (!currentSftpManager.value || !props.wsDeps.isConnected.value) {
     uiNotificationsStore.showError(t('fileManager.errors.sftpNotReady'));
     return;
@@ -929,6 +990,7 @@ const handleFolderSelected = async (event: Event) => {
       displayName: folderName,
       mode: 'folder-archive',
       detail: t('fileManager.notifications.folderArchiveUploading', { count: entryCount }),
+      targetPath,
       afterUpload: async ({ remotePath }) => {
         if (!currentSftpManager.value) {
           throw new Error(t('fileManager.errors.sftpManagerNotFound'));
@@ -960,6 +1022,18 @@ const handleFolderSelected = async (event: Event) => {
   }
 };
 
+const handleFolderSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const files = input.files ? Array.from(input.files) : [];
+  input.value = '';
+
+  if (files.length === 0) {
+    return;
+  }
+
+  await startFolderArchiveUpload(files);
+};
+
 // --- 下载触发器 (定义在此处，供 Composable 使用) ---
 const triggerDownload = (items: FileListItem[]) => { // 修改：接受 FileListItem 数组
     // 恢复使用 props.wsDeps.isConnected
@@ -986,7 +1060,7 @@ const triggerDownload = (items: FileListItem[]) => { // 修改：接受 FileList
             return;
         }
 
-        const downloadPath = currentSftpManager.value!.joinPath(currentSftpManager.value!.currentPath.value, item.filename);
+        const downloadPath = getItemAbsolutePath(item);
         const downloadUrl = `/api/v1/sftp/download?connectionId=${currentConnectionId}&remotePath=${encodeURIComponent(downloadPath)}`;
         console.log(`[FileManager ${props.sessionId}-${props.instanceId}] Triggering download for ${item.filename}: ${downloadUrl}`);
 
@@ -1029,7 +1103,7 @@ const triggerDownloadDirectory = (item: FileListItem) => {
         return;
     }
 
-    const directoryPath = currentSftpManager.value.joinPath(currentSftpManager.value.currentPath.value, item.filename);
+    const directoryPath = getItemAbsolutePath(item);
     // 定义新的后端 API 端点 URL (稍后实现)
     const downloadUrl = `/api/v1/sftp/download-directory?connectionId=${currentConnectionId}&remotePath=${encodeURIComponent(directoryPath)}`;
 
@@ -1115,7 +1189,7 @@ const handleDecompress = (item: FileListItem) => {
 // +++ 复制路径到剪贴板 +++
 const handleCopyPath = async (item: FileListItem) => {
   if (!currentSftpManager.value) return;
-  const fullPath = currentSftpManager.value.joinPath(currentSftpManager.value.currentPath.value, item.filename);
+  const fullPath = getItemAbsolutePath(item);
   try {
     await navigator.clipboard.writeText(fullPath);
     // 可选：显示成功通知
@@ -1149,10 +1223,10 @@ const getTargetPathForItem = (item?: FileListItem | null): string | null => {
   }
 
   if (item.attrs.isDirectory) {
-    return currentSftpManager.value.joinPath(currentPath, item.filename);
+    return getItemAbsolutePath(item);
   }
 
-  return currentPath;
+  return getParentPath(getItemAbsolutePath(item));
 };
 
 const sendCdCommandToPath = (targetPath: string, sessionId?: string) => {
@@ -1267,13 +1341,13 @@ const {
   // isDraggingOver, // 不再直接使用容器的悬停状态
   showExternalDropOverlay, // 控制蒙版显示
   dragOverTarget, // 行拖拽悬停目标 (内部)
+  externalDropTargetPath,
   // draggedItem, // 内部状态，不需要在 FileManager 中直接使用
   // --- 事件处理器 ---
   handleDragEnter,
   handleDragOver, // 容器的 dragover (主要处理内部滚动)
   handleDragLeave,
   handleDrop, // 容器的 drop (主要用于清理)
-  handleOverlayDrop, // 蒙版的 drop
   handleDragStart,
   handleDragEnd,
   handleDragOverRow,
@@ -1288,7 +1362,8 @@ const {
   joinPath: (base: string, target: string): string => {
       return currentSftpManager.value?.joinPath(base, target) ?? `${base}/${target}`.replace(/\/+/g, '/'); // 提供简单的默认实现
   },
-  onFileUpload: startFileUpload,
+  onFileUpload: (file, relativePath, targetPath) => startFileUpload(file, relativePath, { targetPath }),
+  onFolderUpload: startFolderArchiveUpload,
   // 修改：确保在调用前检查 currentSftpManager.value
   onItemMove: (item, newName) => {
       currentSftpManager.value?.renameItem(item, newName);
@@ -1984,6 +2059,10 @@ const handleExplorerToggle = (row: ExplorerTreeRow) => {
   toggleDirectoryPath(row.path, row.expanded);
 };
 
+const handleExplorerSelect = (row: ExplorerTreeRow) => {
+  selectedExplorerPath.value = row.path;
+};
+
 const handleExplorerOpen = (row: ExplorerTreeRow) => {
   if (row.isDirectory) {
     focusDirectoryPath(row.path);
@@ -1993,8 +2072,15 @@ const handleExplorerOpen = (row: ExplorerTreeRow) => {
   openFileInWorkspace(row.path, row.name);
 };
 
+const handleExplorerContextMenu = (event: MouseEvent, row: ExplorerTreeRow) => {
+  selectedExplorerPath.value = row.path;
+  selectedItems.value.clear();
+  lastClickedIndex.value = -1;
+  showContextMenu(event, createContextMenuItemFromTreeRow(row));
+};
+
 const isExplorerRowActive = (row: ExplorerTreeRow) => {
-  return isPathActive(row.path);
+  return selectedExplorerPath.value === row.path;
 };
 
 const isExplorerRowRelated = (row: ExplorerTreeRow) => {
@@ -2250,20 +2336,22 @@ watch(
           <div
             v-if="showExternalDropOverlay"
             ref="dropOverlayRef"
-            class="absolute inset-0 flex items-center justify-center bg-black/70 text-white text-xl font-semibold rounded z-50 pointer-events-auto"
-            @dragover.prevent
-            @dragleave.prevent="handleDragLeave"
-            @drop.prevent="handleOverlayDrop"
+            class="absolute inset-0 flex items-center justify-center bg-black/70 text-white text-xl font-semibold rounded z-50 pointer-events-none"
           >
             {{ t('fileManager.dropFilesHere', 'Drop files here to upload') }}
           </div>
 
-          <div class="p-2 space-y-1" :class="{ 'pointer-events-none': showExternalDropOverlay }">
+          <div class="p-2 space-y-1">
             <div
               v-for="row in explorerTreeRows"
               :key="row.id"
+              :data-drop-path="row.path"
+              :data-is-directory="row.isDirectory"
               :class="[
                 'group flex items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors cursor-pointer',
+                showExternalDropOverlay && externalDropTargetPath === row.path
+                  ? 'border-primary bg-primary/15 text-foreground'
+                  : '',
                 isExplorerRowActive(row)
                   ? 'bg-primary text-white border-primary shadow-sm'
                   : isExplorerRowRelated(row)
@@ -2271,7 +2359,9 @@ watch(
                     : 'border-transparent text-text-secondary hover:bg-background hover:text-foreground'
               ]"
               :style="{ paddingLeft: `${0.6 + row.depth * 0.85}rem` }"
-              @click="handleExplorerOpen(row)"
+              @click="handleExplorerSelect(row)"
+              @dblclick="handleExplorerOpen(row)"
+              @contextmenu.prevent.stop="handleExplorerContextMenu($event, row)"
             >
               <button
                 v-if="row.isDirectory"

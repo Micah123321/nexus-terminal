@@ -93,15 +93,16 @@ export function useFileUploader(
         Object.assign(upload, patch);
     };
 
-    const buildRemotePath = (file: File, relativePath?: string) => {
+    const buildRemotePath = (file: File, relativePath?: string, targetPath?: string) => {
+        const uploadBasePath = targetPath || currentPathRef.value;
         let finalRemotePath: string;
         if (relativePath) {
-            const basePath = currentPathRef.value.endsWith('/') ? currentPathRef.value : `${currentPathRef.value}/`;
+            const basePath = uploadBasePath.endsWith('/') ? uploadBasePath : `${uploadBasePath}/`;
             let cleanRelativePath = relativePath.startsWith('/') ? relativePath.substring(1) : relativePath;
             cleanRelativePath = cleanRelativePath.endsWith('/') ? cleanRelativePath.slice(0, -1) : cleanRelativePath;
             finalRemotePath = `${basePath}${cleanRelativePath ? `${cleanRelativePath}/` : ''}${file.name}`;
         } else {
-            finalRemotePath = joinPath(currentPathRef.value, file.name);
+            finalRemotePath = joinPath(uploadBasePath, file.name);
         }
 
         return finalRemotePath.replace(/\/+/g, '/');
@@ -199,6 +200,7 @@ export function useFileUploader(
             displayName?: string;
             mode?: UploadTaskMode;
             detail?: string;
+            targetPath?: string;
             afterUpload?: (context: { uploadId: string; remotePath: string; item: UploadItem; }) => Promise<void>;
         }
     ) => {
@@ -215,8 +217,8 @@ export function useFileUploader(
         }
 
         const uploadId = options?.uploadId ?? generateUploadId();
-        const finalRemotePath = buildRemotePath(file, relativePath);
-        console.log(`[FileUploader ${sessionIdForLog.value}] Calculated finalRemotePath: ${finalRemotePath} (current: ${currentPathRef.value}, relative: ${relativePath}, filename: ${file.name}) // wsDeps.isSftpReady: ${wsDeps.value.isSftpReady.value}`); 
+        const finalRemotePath = buildRemotePath(file, relativePath, options?.targetPath);
+        console.log(`[FileUploader ${sessionIdForLog.value}] Calculated finalRemotePath: ${finalRemotePath} (current: ${currentPathRef.value}, relative: ${relativePath}, target: ${options?.targetPath}, filename: ${file.name}) // wsDeps.isSftpReady: ${wsDeps.value.isSftpReady.value}`); 
 
         uploads[uploadId] = {
             id: uploadId,

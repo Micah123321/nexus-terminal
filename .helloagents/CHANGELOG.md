@@ -26,6 +26,9 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 快速修改
+- **[frontend]**: 修正外部拖拽上传的落点路径判定，拖到哪个目录就上传到哪个目录，拖拽目录仍沿用先压缩再上传 — by yinjianm
+  - 类型: 快速修改（无方案包）
+  - 文件: packages/frontend/src/components/FileManager.vue, packages/frontend/src/composables/file-manager/useFileManagerDragAndDrop.ts, packages/frontend/src/composables/file-manager/useFolderArchiveUpload.ts, packages/frontend/src/composables/useFileUploader.ts
 - **[backend]**: 将后端包版本元数据同步提升到 `1.0.0`，与根工作区和其余主包保持一致 — by yinjianm
   - 类型: 快速修改（无方案包）
   - 文件: packages/backend/package.json, packages/backend/package-lock.json, package-lock.json
