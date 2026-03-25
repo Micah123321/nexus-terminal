@@ -369,6 +369,9 @@
     "scopeTreeSearch": "Search tag tree...",
     "scopeSearchMode": "Matched paths are expanded",
     "scopeTreeNoMatch": "No matching tree nodes",
+    "scopeDragPlaceholder": "Drag-reorder is reserved for now; only target placeholder feedback is shown.",
+    "scopePinAction": "Focus this scope",
+    "scopeDragAction": "Drag to reorder (reserved)",
     "untaggedGroup": "Untagged",
     "noUntaggedConnections": "No untagged connections found."
   },

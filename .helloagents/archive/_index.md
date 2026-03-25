@@ -18,6 +18,7 @@
 | 202603252207 | ssh-connection-multi-terminal | implementation | frontend | ssh-connection-multi-terminal#D001 | ✅完成 |
 | 202603252220 | connections-tree-toolbar-menu-polish | implementation | frontend | - | ✅完成 |
 | 202603252310 | connections-tree-search-explorer-polish | implementation | frontend | - | ✅完成 |
+| 202603252336 | connections-tree-hover-drag-polish | implementation | frontend | - | ✅完成 |
 | 202603252229 | terminal-tab-group-visual | implementation | frontend | terminal-tab-group-visual#D001 | ✅完成 |
 | 202603252256 | workspace-monitor-terminal-polish | implementation | workspace-root | workspace-monitor-terminal-polish#D001 | ✅完成 |
 | 202603251200 | workspace-workbench-monitor | implementation | frontend, backend | workspace-workbench-monitor#D001 | ✅完成 |
@@ -36,6 +37,7 @@
 - [202603252207_ssh-connection-multi-terminal](./2026-03/202603252207_ssh-connection-multi-terminal/) - 为同一 SSH 服务器连接补充多终端入口与终端序号标识
 - [202603252220_connections-tree-toolbar-menu-polish](./2026-03/202603252220_connections-tree-toolbar-menu-polish/) - 为连接管理页补树工具栏与展开/收起控制，并整理行内更多菜单
 - [202603252310_connections-tree-search-explorer-polish](./2026-03/202603252310_connections-tree-search-explorer-polish/) - 为连接管理页补左侧树搜索、命中链路过滤、节点计数高亮和资源管理器式头部布局
+- [202603252336_connections-tree-hover-drag-polish](./2026-03/202603252336_connections-tree-hover-drag-polish/) - 为连接管理页补树节点 hover 工具、分隔标题行和拖拽重排占位反馈
 - [202603252229_terminal-tab-group-visual](./2026-03/202603252229_terminal-tab-group-visual/) - 将顶部终端标签栏改成更明显的服务器组头与终端子标签
 - [202603252256_workspace-monitor-terminal-polish](./2026-03/202603252256_workspace-monitor-terminal-polish/) - 重新核对状态监控与终端标签剩余改动，并修正知识库归档索引与活跃方案状态
 - [202603251200_workspace-workbench-monitor](./2026-03/202603251200_workspace-workbench-monitor/) - `/workspace` 改为三栏 Workbench 布局，并新增开机累计流量监控

@@ -273,6 +273,9 @@
         "scopeTreeSearch": "タグツリーを検索...",
         "scopeSearchMode": "一致したパスを自動展開中",
         "scopeTreeNoMatch": "一致するツリーノードはありません",
+        "scopeDragPlaceholder": "ドラッグ並べ替えは予約中で、現在は配置先のプレースホルダーのみ表示します。",
+        "scopePinAction": "この範囲にフォーカス",
+        "scopeDragAction": "ドラッグで並べ替え（予約）",
         "table": {
             "actions": "アクション",
             "authMethod": "認証方法",

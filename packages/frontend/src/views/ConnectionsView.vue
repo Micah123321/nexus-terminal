@@ -95,6 +95,10 @@ const selectedConnectionIdsForBatch = ref<Set<number>>(new Set());
 const showBatchEditForm = ref(false);
 const isDeletingSelectedConnections = ref(false);
 const expandedTreeNodes = ref<Record<string, boolean>>({});
+const hoveredTreeNodeId = ref<ScopeId | null>(null);
+const draggingTreeNodeId = ref<ScopeId | null>(null);
+const dropTargetTreeNodeId = ref<ScopeId | null>(null);
+const treeDragNoticeVisible = ref(false);
 
 const connectionTestStates = ref<Map<number, ConnectionTestState>>(new Map());
 const isTestingAll = ref(false);
@@ -537,6 +541,10 @@ const getTreeNodeRowClass = (node: TagTreeNode) => {
     return 'bg-primary/15 text-foreground border-primary/30 shadow-sm';
   }
 
+  if (dropTargetTreeNodeId.value === node.id) {
+    return 'border-amber-400/35 bg-amber-500/10 text-foreground shadow-sm';
+  }
+
   if (matchingTreeNodeIds.value.has(node.id)) {
     return 'border-emerald-400/30 bg-emerald-500/8 text-emerald-100 shadow-sm';
   }
@@ -708,6 +716,38 @@ const resetScopeSelection = () => {
 
 const clearTreeSearch = () => {
   treeSearchQuery.value = '';
+};
+
+const setHoveredTreeNode = (nodeId: ScopeId | null) => {
+  hoveredTreeNodeId.value = nodeId;
+};
+
+const toggleTreeNodeFromAction = (node: TagTreeNode) => {
+  if (!node.expandable) {
+    return;
+  }
+
+  toggleTreeNode(node.id);
+};
+
+const startTreeDrag = (node: TagTreeNode) => {
+  draggingTreeNodeId.value = node.id;
+  dropTargetTreeNodeId.value = node.id;
+  treeDragNoticeVisible.value = true;
+};
+
+const updateTreeDropTarget = (node: TagTreeNode) => {
+  if (!draggingTreeNodeId.value || draggingTreeNodeId.value === node.id) {
+    return;
+  }
+
+  dropTargetTreeNodeId.value = node.id;
+};
+
+const finishTreeDrag = () => {
+  draggingTreeNodeId.value = null;
+  dropTargetTreeNodeId.value = null;
+  treeDragNoticeVisible.value = false;
 };
 
 const connectTo = (connection: ConnectionInfo) => {
@@ -1067,8 +1107,12 @@ onBeforeUnmount(() => {
 
           <div class="p-3 space-y-5">
             <section>
-              <div class="px-2 mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary/80">
-                {{ t('connections.scopePrimary', '视图') }}
+              <div class="px-2 mb-2 flex items-center gap-3">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary/80 whitespace-nowrap">
+                  {{ t('connections.scopePrimary', '视图') }}
+                </span>
+                <span class="h-px flex-1 bg-gradient-to-r from-border/80 to-transparent"></span>
+                <span class="text-[10px] text-text-secondary/70">{{ primaryScopeNodes.length }}</span>
               </div>
               <div class="space-y-1">
                 <button
@@ -1097,12 +1141,23 @@ onBeforeUnmount(() => {
             </section>
 
             <section>
-              <div class="px-2 mb-2 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary/80">
-                <span>{{ t('connections.scopeExplorerTitle', '标签资源管理器') }}</span>
-                <span class="text-[11px] tracking-normal normal-case text-text-secondary">{{ visibleTagTreeNodes.length }}</span>
+              <div class="px-2 mb-2 flex items-center gap-3">
+                <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary/80 whitespace-nowrap">
+                  {{ t('connections.scopeExplorerTitle', '标签资源管理器') }}
+                </span>
+                <span class="h-px flex-1 bg-gradient-to-r from-border/80 to-transparent"></span>
+                <span class="text-[10px] text-text-secondary/70">{{ visibleTagTreeNodes.length }}</span>
               </div>
 
               <div v-show="tagsSectionExpanded" class="space-y-2">
+                <div
+                  v-if="treeDragNoticeVisible"
+                  class="mx-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100 flex items-center gap-2"
+                >
+                  <i class="fas fa-grip-lines"></i>
+                  <span>{{ t('connections.scopeDragPlaceholder', '拖拽排序预留中，当前仅展示目标占位反馈') }}</span>
+                </div>
+
                 <div class="flex flex-wrap items-center gap-2 px-2">
                   <button
                     @click="expandAllTreeNodes"
@@ -1136,11 +1191,19 @@ onBeforeUnmount(() => {
                     v-for="node in visibleTagTreeNodes"
                     :key="node.id"
                     :class="[
-                      'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
+                      'group w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
                       getTreeNodeRowClass(node),
                       node.count === 0 ? 'opacity-55' : ''
                     ]"
                     :style="{ paddingLeft: `${0.75 + node.level * 1.05}rem` }"
+                    draggable="true"
+                    @mouseenter="setHoveredTreeNode(node.id)"
+                    @mouseleave="setHoveredTreeNode(null)"
+                    @dragstart="startTreeDrag(node)"
+                    @dragenter.prevent="updateTreeDropTarget(node)"
+                    @dragover.prevent
+                    @dragend="finishTreeDrag"
+                    @drop.prevent="finishTreeDrag"
                   >
                     <button
                       class="flex items-center gap-2 min-w-0 flex-1"
@@ -1164,6 +1227,36 @@ onBeforeUnmount(() => {
                     >
                       {{ node.count }}
                     </span>
+
+                    <div
+                      :class="[
+                        'flex items-center gap-1 flex-shrink-0 transition-opacity duration-150',
+                        hoveredTreeNodeId === node.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      ]"
+                    >
+                      <button
+                        v-if="node.expandable"
+                        @click.stop="toggleTreeNodeFromAction(node)"
+                        class="w-7 h-7 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center justify-center"
+                        :title="(expandedTreeNodes[node.id] ?? true) ? t('common.collapse', '收起') : t('common.expand', '展开')"
+                      >
+                        <i :class="['fas text-[11px]', (expandedTreeNodes[node.id] ?? true) ? 'fa-compress-alt' : 'fa-expand-alt']"></i>
+                      </button>
+                      <button
+                        @click.stop="selectScope(node.id)"
+                        class="w-7 h-7 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center justify-center"
+                        :title="t('connections.scopePinAction', '定位到此范围')"
+                      >
+                        <i class="fas fa-crosshairs text-[11px]"></i>
+                      </button>
+                      <button
+                        @mousedown.stop
+                        class="w-7 h-7 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center justify-center cursor-grab active:cursor-grabbing"
+                        :title="t('connections.scopeDragAction', '拖拽重排（预留）')"
+                      >
+                        <i class="fas fa-grip-lines text-[11px]"></i>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

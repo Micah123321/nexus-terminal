@@ -34,6 +34,8 @@
   - 方案: [202603252220_connections-tree-toolbar-menu-polish](archive/2026-03/202603252220_connections-tree-toolbar-menu-polish/)
 - **[frontend]**: 为连接管理页补左侧树搜索、命中链路过滤、节点计数高亮和资源管理器式头部布局 — by yinjianm
   - 方案: [202603252310_connections-tree-search-explorer-polish](archive/2026-03/202603252310_connections-tree-search-explorer-polish/)
+- **[frontend]**: 为连接管理页补树节点 hover 工具操作、资源管理器式分隔标题行和拖拽重排占位反馈 — by yinjianm
+  - 方案: [202603252336_connections-tree-hover-drag-polish](archive/2026-03/202603252336_connections-tree-hover-drag-polish/)
 - **[frontend]**: 为同一 SSH 服务器连接补充多终端入口与终端序号标识，默认首次仍只打开一个终端 — by yinjianm
   - 方案: [202603252207_ssh-connection-multi-terminal](archive/2026-03/202603252207_ssh-connection-multi-terminal/)
 - **[frontend]**: 将顶部终端标签栏升级为“服务器组头 + 终端子标签 + 组尾新增按钮”，让同服务器多终端关系更直观 — by yinjianm

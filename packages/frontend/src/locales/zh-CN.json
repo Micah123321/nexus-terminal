@@ -369,6 +369,9 @@
     "scopeTreeSearch": "搜索标签树...",
     "scopeSearchMode": "命中路径已自动展开",
     "scopeTreeNoMatch": "没有匹配的树节点",
+    "scopeDragPlaceholder": "拖拽排序预留中，当前仅展示目标占位反馈。",
+    "scopePinAction": "定位到此范围",
+    "scopeDragAction": "拖拽重排（预留）",
     "untaggedGroup": "未标记",
     "noUntaggedConnections": "没有未标记的连接。"
   },
