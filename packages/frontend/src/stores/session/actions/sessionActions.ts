@@ -15,6 +15,8 @@ import { createStatusMonitorManager, type StatusMonitorDependencies } from '../.
 import { createDockerManager, type DockerManagerDependencies } from '../../../composables/useDockerManager';
 import { registerSshSuspendHandlers } from './sshSuspendActions'; 
 
+const SESSION_ORDER_STORAGE_KEY = 'sessionOrder';
+
 
 // --- 辅助函数 (特定于此模块的 actions) ---
 const findConnectionInfo = (connectionId: number | string, connectionsStore: ReturnType<typeof useConnectionsStore>): ConnectionInfo | undefined => {
@@ -31,6 +33,75 @@ const getNextTerminalIndex = (connectionId: string): number => {
   });
 
   return maxTerminalIndex + 1;
+};
+
+const getOrderedSessionIds = (): string[] => {
+  const savedOrderStr = localStorage.getItem(SESSION_ORDER_STORAGE_KEY);
+  let savedOrder: string[] = [];
+
+  if (savedOrderStr) {
+    try {
+      savedOrder = JSON.parse(savedOrderStr);
+    } catch (error) {
+      console.error('[SessionActions] 解析 sessionOrder 失败，回退到创建顺序。', error);
+      savedOrder = [];
+    }
+  }
+
+  const sessionList = Array.from(sessions.value.values());
+
+  if (savedOrder.length === 0) {
+    return sessionList
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((session) => session.sessionId);
+  }
+
+  return sessionList
+    .sort((a, b) => {
+      const indexA = savedOrder.indexOf(a.sessionId);
+      const indexB = savedOrder.indexOf(b.sessionId);
+      if (indexA === -1 && indexB === -1) return a.createdAt - b.createdAt;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    })
+    .map((session) => session.sessionId);
+};
+
+const saveOrderedSessionIds = (sessionIds: string[]) => {
+  localStorage.setItem(SESSION_ORDER_STORAGE_KEY, JSON.stringify(sessionIds));
+};
+
+const insertSessionIdIntoOrder = (sessionId: string, connectionId: string) => {
+  const orderedSessionIds = getOrderedSessionIds();
+  const nextOrder = [...orderedSessionIds];
+
+  if (nextOrder.includes(sessionId)) {
+    return;
+  }
+
+  let insertionIndex = nextOrder.length;
+  for (let index = nextOrder.length - 1; index >= 0; index -= 1) {
+    const orderedSession = sessions.value.get(nextOrder[index]);
+    if (orderedSession?.connectionId === connectionId) {
+      insertionIndex = index + 1;
+      break;
+    }
+  }
+
+  nextOrder.splice(insertionIndex, 0, sessionId);
+  saveOrderedSessionIds(nextOrder);
+};
+
+const replaceSessionIdInOrder = (previousSessionId: string, nextSessionId: string) => {
+  const orderedSessionIds = getOrderedSessionIds();
+  const updatedOrder = orderedSessionIds.map((sessionId) => (sessionId === previousSessionId ? nextSessionId : sessionId));
+  saveOrderedSessionIds(Array.from(new Set(updatedOrder)));
+};
+
+const removeSessionIdFromOrder = (sessionId: string) => {
+  const orderedSessionIds = getOrderedSessionIds().filter((orderedSessionId) => orderedSessionId !== sessionId);
+  saveOrderedSessionIds(orderedSessionIds);
 };
 
 // --- Actions ---
@@ -128,6 +199,7 @@ export const openNewSession = (
   const newSessionsMap = new Map(sessions.value);
   newSessionsMap.set(newSessionId, newSession);
   sessions.value = newSessionsMap;
+  insertSessionIdIntoOrder(newSessionId, dbConnId);
   activeSessionId.value = newSessionId;
   console.log(`[SessionActions] 已创建新会话实例: ${newSessionId} for connection ${dbConnId} (terminal #${terminalIndex})`);
 
@@ -157,6 +229,7 @@ export const openNewSession = (
 
         currentSessions.set(backendSID, sessionToUpdate);
         sessions.value = currentSessions;
+        replaceSessionIdInOrder(originalFrontendSessionIdForHandler, backendSID);
 
         if (activeSessionId.value === originalFrontendSessionIdForHandler) {
           activeSessionId.value = backendSID;
@@ -253,6 +326,7 @@ export const closeSession = (sessionId: string) => {
   const newSessionsMap = new Map(sessions.value);
   newSessionsMap.delete(sessionId);
   sessions.value = newSessionsMap;
+  removeSessionIdFromOrder(sessionId);
   console.log(`[SessionActions] 已从 Map 中移除会话: ${sessionId}`);
 
   // 3. 切换活动标签页
@@ -333,5 +407,6 @@ export const cleanupAllSessions = () => {
     newSessionsMap.clear();
     sessions.value = newSessionsMap;
   }
+  saveOrderedSessionIds([]);
   activeSessionId.value = null;
 };

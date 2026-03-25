@@ -1319,10 +1319,10 @@
     "copied": "已复制到剪贴板",
     "copyFailed": "复制失败",
     "actions": {
-      "sendToAllSessions": "发送到全部会话"
+      "sendToAllSessions": "发送到全部服务器"
     },
     "notifications": {
-      "sentToAllSessions": "指令已发送到 {count} 个会话。",
+      "sentToAllSessions": "指令已发送到 {count} 台服务器。",
       "noActiveSshSessions": "没有活动的 SSH 会话可发送指令。"
     }
   },
@@ -1360,10 +1360,10 @@
       "clickToEditTag": "点击编辑标签名称"
     },
     "actions": {
-      "sendToAllSessions": "发送到全部会话"
+      "sendToAllSessions": "发送到全部服务器"
     },
     "notifications": {
-      "sentToAllSessions": "指令已发送到 {count} 个会话。",
+      "sentToAllSessions": "指令已发送到 {count} 台服务器。",
       "noActiveSshSessions": "没有活动的 SSH 会话可发送指令。"
     }
   },

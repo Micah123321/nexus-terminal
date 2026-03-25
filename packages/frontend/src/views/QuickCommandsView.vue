@@ -241,6 +241,7 @@ import { useWorkspaceEventEmitter } from '../composables/workspaceEvents';
 import { useSessionStore } from '../stores/session.store';
 import type { SessionState } from '../stores/session/types'; 
 import { useConnectionsStore } from '../stores/connections.store';
+import { getUniqueConnectedSshSessions } from '../utils/sessionSelection';
 
 const quickCommandsStore = useQuickCommandsStore();
 const quickCommandTagsStore = useQuickCommandTagsStore(); 
@@ -763,13 +764,7 @@ const closeQuickCommandContextMenu = () => {
 const handleQuickCommandMenuAction = (action: 'sendToAllSessions', command: QuickCommandFE) => {
   closeQuickCommandContextMenu();
   if (action === 'sendToAllSessions') {
-    const activeSshSessions = Array.from(sessionStore.sessions.values()).filter(
-      (s: SessionState) => {
-        if (s.wsManager.connectionStatus.value !== 'connected') return false;
-        const connInfo = connectionsStore.connections.find(c => c.id === Number(s.connectionId));
-        return connInfo?.type === 'SSH';
-      }
-    );
+    const activeSshSessions = getUniqueConnectedSshSessions(sessionStore.sessions, connectionsStore.connections);
 
     if (activeSshSessions.length > 0) {
       activeSshSessions.forEach((session: SessionState) => {

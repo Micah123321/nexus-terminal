@@ -1315,10 +1315,10 @@
     "copied": "Copied to clipboard",
     "copyFailed": "Copy failed",
     "actions": {
-      "sendToAllSessions": "Send to All Sessions"
+      "sendToAllSessions": "Send to All Servers"
     },
     "notifications": {
-      "sentToAllSessions": "Command sent to {count} sessions.",
+      "sentToAllSessions": "Command sent to {count} servers.",
       "noActiveSshSessions": "No active SSH sessions to send command to."
     }
   },
@@ -1356,10 +1356,10 @@
       "clickToEditTag": "Click to edit tag name"
     },
     "actions": {
-      "sendToAllSessions": "Send to All Sessions"
+      "sendToAllSessions": "Send to All Servers"
     },
     "notifications": {
-      "sentToAllSessions": "Command sent to {count} sessions.",
+      "sentToAllSessions": "Command sent to {count} servers.",
       "noActiveSshSessions": "No active SSH sessions to send command to."
     }
   },

@@ -84,6 +84,7 @@ const getInitialSelectedScope = (): ScopeId => {
 const selectedScope = ref<ScopeId>(getInitialSelectedScope());
 const activeTypeFilter = ref<ConnectionTypeFilter>((localStorage.getItem(LS_TYPE_FILTER_KEY) as ConnectionTypeFilter) || 'ALL');
 const searchQuery = ref('');
+const treeSearchQuery = ref('');
 const tagsSectionExpanded = ref(true);
 
 const showAddEditConnectionForm = ref(false);
@@ -113,6 +114,7 @@ const TREE_EXPANDED_STORAGE_KEY = 'connections_view_tree_expanded';
 const tagPathSeparatorRegex = /\s*(?:\/|>|\\)\s*/;
 
 const normalizedSearchQuery = computed(() => searchQuery.value.toLowerCase().trim());
+const normalizedTreeSearchQuery = computed(() => treeSearchQuery.value.toLowerCase().trim());
 
 const loadInitialExpandedTreeState = (): Record<string, boolean> => {
   try {
@@ -285,19 +287,69 @@ const tagTreeNodes = computed<TagTreeNode[]>(() => {
   return buildNodes(rootChildren, 0);
 });
 
+const filteredTagTreeNodes = computed<TagTreeNode[]>(() => {
+  const query = normalizedTreeSearchQuery.value;
+  if (!query) {
+    return tagTreeNodes.value;
+  }
+
+  const filterNodes = (nodes: TagTreeNode[]): TagTreeNode[] => {
+    return nodes.flatMap((node) => {
+      const filteredChildren = filterNodes(node.children);
+      const selfMatches = node.label.toLowerCase().includes(query) || node.fullLabel.toLowerCase().includes(query);
+
+      if (!selfMatches && filteredChildren.length === 0) {
+        return [];
+      }
+
+      return [{
+        ...node,
+        children: filteredChildren,
+      }];
+    });
+  };
+
+  return filterNodes(tagTreeNodes.value);
+});
+
+const matchingTreeNodeIds = computed<Set<ScopeId>>(() => {
+  const matches = new Set<ScopeId>();
+  const query = normalizedTreeSearchQuery.value;
+
+  if (!query) {
+    return matches;
+  }
+
+  const walkNodes = (nodes: TagTreeNode[]) => {
+    nodes.forEach((node) => {
+      if (node.label.toLowerCase().includes(query) || node.fullLabel.toLowerCase().includes(query)) {
+        matches.add(node.id);
+      }
+
+      if (node.children.length > 0) {
+        walkNodes(node.children);
+      }
+    });
+  };
+
+  walkNodes(tagTreeNodes.value);
+  return matches;
+});
+
 const visibleTagTreeNodes = computed<TagTreeNode[]>(() => {
   const rows: TagTreeNode[] = [];
+  const isSearchMode = Boolean(normalizedTreeSearchQuery.value);
 
   const appendVisibleNodes = (nodes: TagTreeNode[]) => {
     nodes.forEach((node) => {
       rows.push(node);
-      if (node.expandable && (expandedTreeNodes.value[node.id] ?? true)) {
+      if (node.expandable && (isSearchMode || (expandedTreeNodes.value[node.id] ?? true))) {
         appendVisibleNodes(node.children);
       }
     });
   };
 
-  appendVisibleNodes(tagTreeNodes.value);
+  appendVisibleNodes(filteredTagTreeNodes.value);
   return rows;
 });
 
@@ -318,6 +370,7 @@ const expandableTreeNodeIds = computed<ScopeId[]>(() => {
 });
 
 const hasExpandableTreeNodes = computed(() => expandableTreeNodeIds.value.length > 0);
+const hasTreeSearchResults = computed(() => visibleTagTreeNodes.value.length > 0);
 
 const primaryScopeNodes = computed<ScopeNode[]>(() => {
   return [
@@ -479,6 +532,34 @@ const getScopeNodeClass = (nodeId: ScopeId) => {
   return 'text-text-secondary border-transparent hover:bg-header hover:text-foreground';
 };
 
+const getTreeNodeRowClass = (node: TagTreeNode) => {
+  if (selectedScope.value === node.id) {
+    return 'bg-primary/15 text-foreground border-primary/30 shadow-sm';
+  }
+
+  if (matchingTreeNodeIds.value.has(node.id)) {
+    return 'border-emerald-400/30 bg-emerald-500/8 text-emerald-100 shadow-sm';
+  }
+
+  return 'text-text-secondary border-transparent hover:bg-header hover:text-foreground';
+};
+
+const getTreeCountClass = (node: ScopeNode) => {
+  if (selectedScope.value === node.id) {
+    return 'border-primary/30 bg-primary/20 text-foreground';
+  }
+
+  if (matchingTreeNodeIds.value.has(node.id)) {
+    return 'border-emerald-400/25 bg-emerald-500/18 text-emerald-100';
+  }
+
+  if (node.count > 0) {
+    return 'border-emerald-500/15 bg-emerald-500/10 text-emerald-200';
+  }
+
+  return 'border-current/15 bg-black/10 text-text-secondary';
+};
+
 const getTypeBadgeClass = (type: ConnectionInfo['type']) => {
   if (type === 'SSH') {
     return 'bg-emerald-500/12 text-emerald-300 border-emerald-400/25';
@@ -623,6 +704,10 @@ const collapseAllTreeNodes = () => {
 
 const resetScopeSelection = () => {
   selectScope('all');
+};
+
+const clearTreeSearch = () => {
+  treeSearchQuery.value = '';
 };
 
 const connectTo = (connection: ConnectionInfo) => {
@@ -924,18 +1009,58 @@ onBeforeUnmount(() => {
 
       <div class="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-4">
         <aside class="bg-card text-card-foreground border border-border rounded-2xl overflow-hidden min-h-[720px]">
-          <div class="px-4 py-4 border-b border-border/60 bg-header/40">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h2 class="text-sm font-semibold tracking-wide text-foreground">{{ t('connections.scopeTitle', '浏览范围') }}</h2>
-                <p class="mt-1 text-xs text-text-secondary">{{ t('connections.scopeDesc', '按标签和分组快速切换连接范围') }}</p>
+          <div class="px-4 pt-4 pb-3 border-b border-border/60 bg-gradient-to-b from-header/70 via-header/35 to-background/70">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <div class="w-9 h-9 rounded-xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200 inline-flex items-center justify-center">
+                    <i class="fas fa-folder-tree text-sm"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <h2 class="text-sm font-semibold tracking-[0.18em] uppercase text-foreground">{{ t('connections.scopeTitle', '浏览范围') }}</h2>
+                    <p class="mt-0.5 text-xs text-text-secondary truncate">{{ t('connections.scopeDesc', '按标签和分组快速切换连接范围') }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="px-2.5 py-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 text-[11px] font-medium text-emerald-100">
+                  {{ visibleTagTreeNodes.length }} {{ t('connections.table.tags', '标签') }}
+                </span>
+                <button
+                  @click="tagsSectionExpanded = !tagsSectionExpanded"
+                  class="w-8 h-8 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors"
+                  :title="tagsSectionExpanded ? t('common.collapse', '收起') : t('common.expand', '展开')"
+                >
+                  <i :class="['fas', tagsSectionExpanded ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-3 flex items-center gap-2">
+              <div class="relative flex-1 min-w-0">
+                <i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs"></i>
+                <input
+                  v-model="treeSearchQuery"
+                  type="text"
+                  :placeholder="t('connections.scopeTreeSearch', '搜索标签树...')"
+                  class="w-full h-9 pl-9 pr-9 rounded-xl border border-border/60 bg-background/95 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition"
+                />
+                <button
+                  v-if="treeSearchQuery"
+                  @click="clearTreeSearch"
+                  class="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center justify-center"
+                  :title="t('common.clear', '清空')"
+                >
+                  <i class="fas fa-xmark text-xs"></i>
+                </button>
               </div>
               <button
-                @click="tagsSectionExpanded = !tagsSectionExpanded"
-                class="w-8 h-8 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors"
-                :title="tagsSectionExpanded ? t('common.collapse', '收起') : t('common.expand', '展开')"
+                @click="resetScopeSelection"
+                :disabled="selectedScope === 'all'"
+                class="h-9 px-3 rounded-xl border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <i :class="['fas', tagsSectionExpanded ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
+                <i class="fas fa-crosshairs"></i>
+                <span>{{ t('common.reset', '重置') }}</span>
               </button>
             </div>
           </div>
@@ -954,6 +1079,7 @@ onBeforeUnmount(() => {
                     'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
                     getScopeNodeClass(node.id)
                   ]"
+                  :class="getTreeCountClass(node)"
                 >
                   <span class="flex items-center gap-2 min-w-0">
                     <i :class="['fas', node.id === 'all' ? 'fa-layer-group' : 'fa-tag', 'w-4 text-center']"></i>
@@ -968,7 +1094,7 @@ onBeforeUnmount(() => {
 
             <section>
               <div class="px-2 mb-2 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary/80">
-                <span>{{ t('connections.table.tags', '标签') }}</span>
+                <span>{{ t('connections.table.tags', '标签资源管理器') }}</span>
                 <span class="text-[11px] tracking-normal normal-case text-text-secondary">{{ visibleTagTreeNodes.length }}</span>
               </div>
 
@@ -990,50 +1116,51 @@ onBeforeUnmount(() => {
                     <i class="fas fa-square-minus"></i>
                     <span>{{ t('common.collapseAll', '收起全部') }}</span>
                   </button>
-                  <button
-                    @click="resetScopeSelection"
-                    :disabled="selectedScope === 'all'"
-                    class="h-8 px-2.5 rounded-lg border border-border/60 bg-background text-text-secondary hover:bg-border hover:text-foreground transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <i class="fas fa-rotate-left"></i>
-                    <span>{{ t('common.reset', '重置范围') }}</span>
-                  </button>
                 </div>
 
                 <div class="px-2 flex items-center justify-between gap-3 text-[11px] text-text-secondary">
                   <span>{{ t('connections.scopeHintCompact', '树节点按标签路径自动分层') }}</span>
-                  <span>{{ selectedScopeTitle }}</span>
+                  <span class="truncate text-right">{{ normalizedTreeSearchQuery ? t('connections.scopeSearchMode', '命中路径已自动展开') : selectedScopeTitle }}</span>
                 </div>
 
-                <div class="space-y-1 max-h-[520px] overflow-y-auto pr-1">
-                <div
-                  v-for="node in visibleTagTreeNodes"
-                  :key="node.id"
-                  :class="[
-                    'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
-                    getScopeNodeClass(node.id),
-                    node.count === 0 ? 'opacity-55' : ''
-                  ]"
-                  :style="{ paddingLeft: `${0.75 + node.level * 1.05}rem` }"
-                >
-                  <button
-                    class="flex items-center gap-2 min-w-0 flex-1"
-                    @click="handleTreeNodeSelect(node)"
-                  >
-                    <i
-                      v-if="node.expandable"
-                      :class="[
-                        'fas w-4 text-center transition-transform duration-150',
-                        (expandedTreeNodes[node.id] ?? true) ? 'fa-chevron-down' : 'fa-chevron-right'
-                      ]"
-                    ></i>
-                    <i v-else class="fas fa-circle text-[8px] w-4 text-center opacity-60"></i>
-                    <span class="truncate" :title="node.fullLabel">{{ node.label }}</span>
-                  </button>
-                  <span class="px-2 py-0.5 rounded-full text-xs border border-current/15 bg-black/10 flex-shrink-0">
-                    {{ node.count }}
-                  </span>
+                <div v-if="normalizedTreeSearchQuery && !hasTreeSearchResults" class="mx-2 rounded-xl border border-dashed border-border/70 bg-background/70 px-3 py-4 text-xs text-text-secondary text-center">
+                  {{ t('connections.scopeTreeNoMatch', '没有匹配的树节点') }}
                 </div>
+
+                <div v-else class="space-y-1 max-h-[520px] overflow-y-auto pr-1">
+                  <div
+                    v-for="node in visibleTagTreeNodes"
+                    :key="node.id"
+                    :class="[
+                      'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
+                      getTreeNodeRowClass(node),
+                      node.count === 0 ? 'opacity-55' : ''
+                    ]"
+                    :style="{ paddingLeft: `${0.75 + node.level * 1.05}rem` }"
+                  >
+                    <button
+                      class="flex items-center gap-2 min-w-0 flex-1"
+                      @click="handleTreeNodeSelect(node)"
+                    >
+                      <i
+                        v-if="node.expandable"
+                        :class="[
+                          'fas w-4 text-center transition-transform duration-150',
+                          (normalizedTreeSearchQuery || (expandedTreeNodes[node.id] ?? true)) ? 'fa-chevron-down' : 'fa-chevron-right'
+                        ]"
+                      ></i>
+                      <i v-else class="fas fa-circle text-[8px] w-4 text-center opacity-60"></i>
+                      <span class="truncate" :title="node.fullLabel">{{ node.label }}</span>
+                    </button>
+                    <span
+                      :class="[
+                        'px-2 py-0.5 rounded-full text-xs border flex-shrink-0 transition-colors',
+                        getTreeCountClass(node)
+                      ]"
+                    >
+                      {{ node.count }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </section>

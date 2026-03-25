@@ -60,10 +60,10 @@
         "loading": "ロード中...",
         "searchPlaceholder": "履歴を検索...",
         "actions": {
-          "sendToAllSessions": "すべてのセッションに送信"
+          "sendToAllSessions": "すべてのサーバーに送信"
         },
         "notifications": {
-          "sentToAllSessions": "コマンドは {count} 個のセッションに送信されました。",
+          "sentToAllSessions": "コマンドは {count} 台のサーバーに送信されました。",
           "noActiveSshSessions": "コマンドを送信するアクティブな SSH セッションはありません。"
         }
   },
@@ -730,13 +730,13 @@
         "sortByUsage": "使用頻度",
         "usageCount": "使用回数",
         "actions": {
-          "sendToAllSessions": "すべてのセッションに送信"
+          "sendToAllSessions": "すべてのサーバーに送信"
         },
         "notifications": {
-          "sentToAllSessions": "コマンドは {count} 個のセッションに送信されました。",
+          "sentToAllSessions": "コマンドは {count} 台のサーバーに送信されました。",
           "noActiveSshSessions": "コマンドを送信するアクティブな SSH セッションはありません。"
         }
-  },
+      },
   "remoteDesktopModal": {
         "errors": {
             "clientError": "クライアントエラー",

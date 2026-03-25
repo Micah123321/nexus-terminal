@@ -64,6 +64,14 @@ const showConnectionListPopup = ref(false); // 连接列表弹出状态
 const draggableSessions = ref<SessionTabInfoWithStatus[]>([]); // + Local state for draggable
 const showTransferProgressModal = ref(false); // 控制传输进度模态框的显示状态
 
+const activeConnectionId = computed(() => {
+  if (!props.activeSessionId) {
+    return null;
+  }
+
+  return sessionStore.sessions.get(props.activeSessionId)?.connectionId ?? null;
+});
+
 const openConnectionPicker = () => {
   showConnectionListPopup.value = true;
 };
@@ -481,13 +489,32 @@ onBeforeUnmount(() => {
         <template #item="{ element: session, index }">
           <li
             :key="session.sessionId"
-            class="flex h-full flex-shrink-0 items-stretch py-1 pl-1"
+            :class="['flex h-full flex-shrink-0 items-stretch py-1', isGroupStart(index) ? 'pl-1' : 'pl-0']"
             @dragstart="handleDragStart"
           >
-            <div class="flex h-full items-stretch overflow-hidden rounded-md border border-border/70 bg-header/80 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]">
+            <div
+              :class="[
+                'flex h-full items-stretch overflow-hidden border transition-all duration-150',
+                session.connectionId === activeConnectionId
+                  ? 'border-primary/60 bg-primary/10 shadow-[0_0_0_1px_rgba(34,197,94,0.18)]'
+                  : 'border-border/70 bg-header/80 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]',
+                isGroupStart(index) && isGroupEnd(index)
+                  ? 'rounded-md'
+                  : isGroupStart(index)
+                  ? 'rounded-l-md rounded-r-none'
+                  : isGroupEnd(index)
+                  ? '-ml-px rounded-r-md rounded-l-none'
+                  : '-ml-px rounded-none',
+              ]"
+            >
               <div
                 v-if="isGroupStart(index)"
-                class="flex max-w-[160px] items-center border-r border-border/70 bg-black/15 px-2.5 text-xs font-semibold tracking-wide text-text-secondary"
+                :class="[
+                  'flex max-w-[160px] items-center border-r px-2.5 text-xs font-semibold tracking-wide',
+                  session.connectionId === activeConnectionId
+                    ? 'border-primary/50 bg-primary/15 text-foreground'
+                    : 'border-border/70 bg-black/15 text-text-secondary',
+                ]"
                 :title="session.connectionName"
               >
                 <i class="fas fa-server mr-1.5 text-[10px] text-primary/80"></i>
@@ -496,9 +523,11 @@ onBeforeUnmount(() => {
 
               <div
                 :class="[
-                  'group flex h-full items-center px-3 transition-colors duration-150 relative',
+                  'group flex h-full items-center px-2.5 transition-colors duration-150 relative',
                   session.sessionId === activeSessionId
-                    ? 'bg-background text-foreground'
+                    ? 'bg-background text-foreground shadow-[inset_0_1px_0_rgba(34,197,94,0.15)]'
+                    : session.connectionId === activeConnectionId
+                    ? 'bg-primary/5 text-foreground/85 hover:bg-primary/10'
                     : 'bg-header text-text-secondary hover:bg-border',
                   !isGroupStart(index) ? 'border-l border-border/60' : '',
                 ]"
@@ -513,7 +542,7 @@ onBeforeUnmount(() => {
                                session.status === 'connected' ? 'bg-green-500' :
                                session.status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
                                session.status === 'disconnected' ? 'bg-red-500' : 'bg-gray-400']"></span>
-                <span class="whitespace-nowrap text-xs font-medium">
+                <span class="whitespace-nowrap text-[11px] font-medium">
                   {{ t('terminalTabBar.terminalBadge', { index: session.terminalIndex }) }}
                 </span>
                 <button
@@ -532,7 +561,12 @@ onBeforeUnmount(() => {
               <button
                 v-if="isGroupEnd(index) && canOpenSiblingTerminal(session.connectionId)"
                 type="button"
-                class="flex h-full items-center border-l border-border/60 bg-black/10 px-2.5 text-text-secondary transition-colors duration-150 hover:bg-border hover:text-foreground"
+                :class="[
+                  'flex h-full items-center border-l px-2.5 transition-colors duration-150',
+                  session.connectionId === activeConnectionId
+                    ? 'border-primary/40 bg-primary/10 text-foreground/80 hover:bg-primary/15 hover:text-foreground'
+                    : 'border-border/60 bg-black/10 text-text-secondary hover:bg-border hover:text-foreground',
+                ]"
                 @click.stop="openNewTerminalForConnection(session.connectionId)"
                 :title="t('terminalTabBar.newTerminalTooltip')"
               >
