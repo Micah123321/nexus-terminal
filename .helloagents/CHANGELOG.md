@@ -8,6 +8,8 @@
 - 2026-03-25：继续微调 `/workspace` Workbench，新增默认“快捷指令”标签、调整三栏宽度到更接近 xterminal 参考图，并修复终端区域鼠标悬停时指针异常消失的问题。
 
 ### 修复
+- **[frontend]**: 将工作台文件区继续收敛为固定 `/` 根节点的单栏资源管理器树，并在树内同时显示目录与文件 — by yinjianm
+  - 方案: [202603260212_workbench-file-root-tree](archive/2026-03/202603260212_workbench-file-root-tree/)
 - **[frontend]**: 修正快捷命令右键菜单的透明背景与粘贴项语义，改为实底菜单并将回填动作统一为“粘贴到命令输入框（不发送）” — by yinjianm
   - 方案: [202603260156_quickcommands-context-menu-polish](archive/2026-03/202603260156_quickcommands-context-menu-polish/)
 - **[frontend]**: 将工作台文件区从单目录文件表格切换修正为多根目录常驻的文件夹总览视图 — by yinjianm
@@ -22,7 +24,10 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 快速修改
-- **[frontend]**: 收紧快捷指令编辑弹窗的最小尺寸、初始尺寸和视口上限，降低小分辨率下的弹窗溢出概率 — by yinjianm
+- **[workspace-root]**: 同步更新中英文 README，补充 monorepo 结构、最新功能清单与 `.helloagents/` 开发说明 — by yinjianm
+  - 类型: 快速修改（无方案包）
+  - 文件: README.md, doc/README_EN.md
+- **[frontend]**: 收紧快捷指令编辑弹窗的最小尺寸、初始尺寸和视口上限，并在窄屏下切换为上下布局，降低小分辨率下的弹窗溢出概率 — by yinjianm
   - 类型: 快速修改（无方案包）
   - 文件: packages/frontend/src/components/AddEditQuickCommandForm.vue:9,184-185,242-245
 

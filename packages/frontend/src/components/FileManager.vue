@@ -9,7 +9,6 @@ import { useFileEditorStore, type FileInfo } from '../stores/fileEditor.store';
 import { useSessionStore } from '../stores/session.store';
 import { useSettingsStore } from '../stores/settings.store';
 import { useFocusSwitcherStore } from '../stores/focusSwitcher.store';
-import { useFavoritePathsStore, type FavoritePathItem } from '../stores/favoritePaths.store';
 import { useFileManagerContextMenu, type ClipboardState, type CompressFormat } from '../composables/file-manager/useFileManagerContextMenu';
 import { useFileManagerSelection } from '../composables/file-manager/useFileManagerSelection';
 import { useFileManagerDragAndDrop } from '../composables/file-manager/useFileManagerDragAndDrop';
@@ -27,16 +26,6 @@ import { useUiNotificationsStore } from '../stores/uiNotifications.store';
 
 type SftpManagerInstance = ReturnType<typeof createSftpActionsManager>;
 
-type ExplorerRootSource = 'favorite' | 'current';
-
-interface ExplorerRootItem {
-  id: string;
-  path: string;
-  label: string;
-  description: string;
-  source: ExplorerRootSource;
-}
-
 interface ExplorerTreeRow {
   id: string;
   path: string;
@@ -47,30 +36,7 @@ interface ExplorerTreeRow {
   isRoot: boolean;
   loaded: boolean;
   expanded: boolean;
-  source: ExplorerRootSource | 'tree';
   item: FileListItem;
-}
-
-interface ExplorerOverviewRow {
-  id: string;
-  path: string;
-  name: string;
-  depth: number;
-  description?: string;
-  expanded: boolean;
-  loaded: boolean;
-  childDirectoryCount: number;
-  isRootChild: boolean;
-}
-
-interface ExplorerOverviewSection {
-  id: string;
-  path: string;
-  label: string;
-  description: string;
-  loaded: boolean;
-  rowCount: number;
-  rows: ExplorerOverviewRow[];
 }
 
 
@@ -105,7 +71,6 @@ const props = defineProps({
 const { t } = useI18n();
 const route = useRoute(); // Keep for download URL generation for now
 const sessionStore = useSessionStore(); // 实例化 Session Store
-const favoritePathsStore = useFavoritePathsStore();
 
 // --- 获取并存储 SFTP 管理器实例 ---
 // 使用 shallowRef 存储管理器实例，以便在 sessionId 变化时切换
@@ -161,7 +126,6 @@ const {
   showPopupFileEditorBoolean, // +++ 获取弹窗设置状态 +++
   fileManagerShowDeleteConfirmationBoolean, // +++ 获取删除确认设置状态 +++
 } = storeToRefs(settingsStore); // 使用 storeToRefs 保持响应性
-const { favoritePaths } = storeToRefs(favoritePathsStore);
  
  
 
@@ -287,14 +251,17 @@ const toFileListItem = (node: FileTreeNode): FileListItem => ({
   attrs: node.attrs,
 });
 
-const getDirectoryChildren = (node: FileTreeNode | null): FileTreeNode[] => {
+const getTreeChildren = (node: FileTreeNode | null): FileTreeNode[] => {
   if (!node?.children?.length) {
     return [];
   }
 
   return [...node.children]
-    .filter((child) => child.attrs.isDirectory)
-    .sort((left, right) => left.filename.localeCompare(right.filename));
+    .sort((left, right) => {
+      if (left.attrs.isDirectory && !right.attrs.isDirectory) return -1;
+      if (!left.attrs.isDirectory && right.attrs.isDirectory) return 1;
+      return left.filename.localeCompare(right.filename);
+    });
 };
 
 const openFileInWorkspace = (filePath: string, filename: string) => {
@@ -311,156 +278,71 @@ const openFileInWorkspace = (filePath: string, filename: string) => {
   }
 };
 
-const explorerRoots = computed<ExplorerRootItem[]>(() => {
-  const roots = new Map<string, ExplorerRootItem>();
-
-  favoritePaths.value.forEach((favorite: FavoritePathItem) => {
-    const path = favorite.path?.trim();
-    if (!path) {
-      return;
-    }
-
-    roots.set(path, {
-      id: `favorite:${favorite.id}`,
-      path,
-      label: favorite.name?.trim() || getPathName(path),
-      description: path,
-      source: 'favorite',
-    });
-  });
-
-  const currentPath = currentSftpManager.value?.currentPath.value?.trim();
-  if (currentPath && !roots.has(currentPath)) {
-    roots.set(currentPath, {
-      id: `current:${currentPath}`,
-      path: currentPath,
-      label: getPathName(currentPath),
-      description: currentPath,
-      source: 'current',
-    });
-  }
-
-  return Array.from(roots.values());
-});
-
 const explorerTreeRows = computed<ExplorerTreeRow[]>(() => {
   const rows: ExplorerTreeRow[] = [];
+  const rootNode = findTreeNodeByPath('/');
+  const rootItem: FileListItem = rootNode
+    ? toFileListItem(rootNode)
+    : {
+        filename: '/',
+        longname: '/',
+        attrs: {
+          isDirectory: true,
+          isFile: false,
+          isSymbolicLink: false,
+          size: 0,
+          uid: 0,
+          gid: 0,
+          mode: 0,
+          atime: 0,
+          mtime: 0,
+        },
+      };
 
   const appendNodeRows = (basePath: string, nodes: FileListItem[], depth: number) => {
-    sortTreeItems(nodes)
-      .filter((item) => item.attrs.isDirectory)
-      .forEach((item) => {
+    sortTreeItems(nodes).forEach((item) => {
       const itemPath = currentSftpManager.value?.joinPath(basePath, item.filename) ?? `${basePath}/${item.filename}`;
-      const treeNode = findTreeNodeByPath(itemPath);
-      const expanded = Boolean(explorerExpandedPaths.value[itemPath]);
-      const loaded = Boolean(treeNode?.childrenLoaded);
+      const treeNode = item.attrs.isDirectory ? findTreeNodeByPath(itemPath) : null;
+      const expanded = item.attrs.isDirectory ? Boolean(explorerExpandedPaths.value[itemPath]) : false;
+      const loaded = item.attrs.isDirectory ? Boolean(treeNode?.childrenLoaded) : true;
 
       rows.push({
         id: `tree:${itemPath}`,
         path: itemPath,
         name: item.filename,
         depth,
-        isDirectory: true,
+        isDirectory: item.attrs.isDirectory,
         isRoot: false,
         loaded,
         expanded,
-        source: 'tree',
         item,
       });
 
-      if (expanded && treeNode?.children?.length) {
+      if (item.attrs.isDirectory && expanded && treeNode?.children?.length) {
         appendNodeRows(itemPath, treeNode.children.map(toFileListItem), depth + 1);
       }
-      });
+    });
   };
 
-  explorerRoots.value.forEach((root) => {
-    const node = findTreeNodeByPath(root.path);
-    const rootItem: FileListItem = node
-      ? toFileListItem(node)
-      : {
-          filename: getPathName(root.path),
-          longname: root.path,
-          attrs: {
-            isDirectory: true,
-            isFile: false,
-            isSymbolicLink: false,
-            size: 0,
-            uid: 0,
-            gid: 0,
-            mode: 0,
-            atime: 0,
-            mtime: 0,
-          },
-        };
-
-    const expanded = explorerExpandedPaths.value[root.path] ?? true;
-    const loaded = Boolean(node?.childrenLoaded);
-
-    rows.push({
-      id: root.id,
-      path: root.path,
-      name: root.label,
-      description: root.description,
-      depth: 0,
-      isDirectory: true,
-      isRoot: true,
-      loaded,
-      expanded,
-      source: root.source,
-      item: rootItem,
-    });
-
-    if (expanded && node?.children?.length) {
-      appendNodeRows(root.path, node.children.map(toFileListItem), 1);
-    }
+  const expanded = explorerExpandedPaths.value['/'] ?? true;
+  rows.push({
+    id: 'root:/',
+    path: '/',
+    name: '/',
+    description: '/',
+    depth: 0,
+    isDirectory: true,
+    isRoot: true,
+    loaded: Boolean(rootNode?.childrenLoaded),
+    expanded,
+    item: rootItem,
   });
+
+  if (expanded && rootNode?.children?.length) {
+    appendNodeRows('/', rootNode.children.map(toFileListItem), 1);
+  }
 
   return rows;
-});
-
-const explorerOverviewSections = computed<ExplorerOverviewSection[]>(() => {
-  const buildRows = (basePath: string, nodes: FileTreeNode[], depth: number): ExplorerOverviewRow[] => {
-    const rows: ExplorerOverviewRow[] = [];
-
-    nodes.forEach((node) => {
-      const itemPath = currentSftpManager.value?.joinPath(basePath, node.filename) ?? `${basePath}/${node.filename}`;
-      const expanded = Boolean(explorerExpandedPaths.value[itemPath]);
-      const childDirectories = getDirectoryChildren(node);
-
-      rows.push({
-        id: `overview:${itemPath}`,
-        path: itemPath,
-        name: node.filename,
-        depth,
-        expanded,
-        loaded: Boolean(node.childrenLoaded),
-        childDirectoryCount: childDirectories.length,
-        isRootChild: depth === 0,
-      });
-
-      if (expanded && childDirectories.length) {
-        rows.push(...buildRows(itemPath, childDirectories, depth + 1));
-      }
-    });
-
-    return rows;
-  };
-
-  return explorerRoots.value.map((root) => {
-    const rootNode = findTreeNodeByPath(root.path);
-    const childDirectories = getDirectoryChildren(rootNode);
-
-    return {
-      id: `section:${root.id}`,
-      path: root.path,
-      label: root.label,
-      description: root.description,
-      loaded: Boolean(rootNode?.childrenLoaded),
-      rowCount: childDirectories.length,
-      rows: buildRows(root.path, childDirectories, 0),
-    };
-  });
 });
 
 const getFileIconClassBase = (filename: string): string => {
@@ -1933,23 +1815,6 @@ const handleExplorerOpen = (row: ExplorerTreeRow) => {
   openFileInWorkspace(row.path, row.name);
 };
 
-const handleOverviewSectionOpen = (section: ExplorerOverviewSection) => {
-  focusDirectoryPath(section.path);
-};
-
-const handleOverviewRowToggle = (row: ExplorerOverviewRow) => {
-  toggleDirectoryPath(row.path, row.expanded);
-};
-
-const handleOverviewRowOpen = (row: ExplorerOverviewRow) => {
-  focusDirectoryPath(row.path);
-};
-
-const handleOverviewRefresh = (section: ExplorerOverviewSection) => {
-  explorerExpandedPaths.value[section.path] = true;
-  currentSftpManager.value?.loadDirectory(section.path, true);
-};
-
 const isExplorerRowActive = (row: ExplorerTreeRow) => {
   return isPathActive(row.path);
 };
@@ -1968,13 +1833,19 @@ const isExplorerRowRelated = (row: ExplorerTreeRow) => {
 };
 
 watch(
-  explorerRoots,
-  (roots) => {
-    roots.forEach((root) => {
-      if (explorerExpandedPaths.value[root.path] === undefined) {
-        explorerExpandedPaths.value[root.path] = true;
-      }
-    });
+  currentSftpManager,
+  (manager) => {
+    if (!manager) {
+      return;
+    }
+
+    if (explorerExpandedPaths.value['/'] === undefined) {
+      explorerExpandedPaths.value['/'] = true;
+    }
+
+    if (!manager.fileTree.childrenLoaded || manager.currentPath.value !== '/') {
+      manager.loadDirectory('/');
+    }
   },
   { immediate: true },
 );
@@ -2163,29 +2034,42 @@ watch(
      </div>
 
     <div class="flex flex-grow min-h-0 overflow-hidden border-t border-border/60">
-      <aside class="w-[260px] flex-shrink-0 border-r border-border/60 bg-header/40 flex flex-col min-h-0">
+      <div class="flex-1 bg-header/20 flex flex-col min-h-0">
         <div class="px-3 py-3 border-b border-border/60">
           <div class="flex items-center justify-between gap-2">
             <div>
               <div class="text-[11px] uppercase tracking-[0.18em] text-text-secondary">{{ t('fileManager.explorer.title', '目录资源管理器') }}</div>
-              <div class="mt-1 text-xs text-text-secondary">{{ explorerRoots.length }} {{ t('fileManager.explorer.rootCount', '个根目录') }}</div>
+              <div class="mt-1 text-xs text-text-secondary">1 {{ t('fileManager.explorer.rootCount', '个根目录') }}</div>
             </div>
-            <button
-              @click="toggleFavoritePathsModal"
-              class="w-8 h-8 rounded-lg border border-border bg-background text-text-secondary hover:bg-header hover:text-foreground transition-colors"
-              :title="t('favoritePaths.addNew', 'Add new favorite path')"
-            >
-              <i class="fas fa-plus text-xs"></i>
-            </button>
           </div>
         </div>
 
-        <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2">
-          <div v-if="explorerRoots.length === 0" class="px-3 py-6 text-xs text-text-secondary text-center">
-            {{ t('fileManager.explorer.noRoots', '暂无目录根，请先添加收藏路径或连接后浏览当前目录。') }}
+        <div
+          ref="fileListContainerRef"
+          class="flex-1 min-h-0 overflow-y-auto relative outline-none"
+          @dragenter.prevent="handleDragEnter"
+          @dragover.prevent="handleDragOver"
+          @dragleave.prevent="handleDragLeave"
+          @drop.prevent="handleDrop"
+          @click="fileListContainerRef?.focus()"
+          @keydown="handleKeydown"
+          @wheel="handleWheel"
+          @contextmenu.prevent="showContextMenu($event)"
+          tabindex="0"
+          :style="{ '--row-size-multiplier': rowSizeMultiplier }"
+        >
+          <div
+            v-if="showExternalDropOverlay"
+            ref="dropOverlayRef"
+            class="absolute inset-0 flex items-center justify-center bg-black/70 text-white text-xl font-semibold rounded z-50 pointer-events-auto"
+            @dragover.prevent
+            @dragleave.prevent="handleDragLeave"
+            @drop.prevent="handleOverlayDrop"
+          >
+            {{ t('fileManager.dropFilesHere', 'Drop files here to upload') }}
           </div>
 
-          <div v-else class="space-y-1">
+          <div class="p-2 space-y-1" :class="{ 'pointer-events-none': showExternalDropOverlay }">
             <div
               v-for="row in explorerTreeRows"
               :key="row.id"
@@ -2208,7 +2092,7 @@ watch(
                 <i :class="row.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'"></i>
               </button>
               <span v-else class="w-4 h-4 flex items-center justify-center flex-shrink-0 text-[9px] opacity-60">
-                <i class="fas fa-circle"></i>
+                <i class="fas fa-minus"></i>
               </span>
 
               <i
@@ -2224,135 +2108,14 @@ watch(
               <div class="min-w-0 flex-1">
                 <div class="truncate text-sm font-medium" :title="row.description || row.path">{{ row.name }}</div>
                 <div
-                  v-if="row.isRoot"
+                  v-if="row.isRoot || !row.isDirectory"
                   class="truncate text-[10px]"
                   :class="isExplorerRowActive(row) ? 'text-white/75' : 'text-text-secondary/80'"
                 >
-                  {{ row.description }}
+                  {{ row.path }}
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </aside>
-
-      <!-- File List Container -->
-      <div
-        ref="fileListContainerRef"
-        class="flex-grow overflow-y-auto relative outline-none"
-        @dragenter.prevent="handleDragEnter"
-        @dragover.prevent="handleDragOver"
-        @dragleave.prevent="handleDragLeave"
-        @drop.prevent="handleDrop"
-        @click="fileListContainerRef?.focus()"
-        @keydown="handleKeydown"
-        @wheel="handleWheel"
-        @contextmenu.prevent="showContextMenu($event)"
-        tabindex="0"
-        :style="{ '--row-size-multiplier': rowSizeMultiplier }"
-      >
-        <!-- 外部文件拖拽蒙版 -->
-        <div
-          v-if="showExternalDropOverlay"
-          ref="dropOverlayRef"
-          class="absolute inset-0 flex items-center justify-center bg-black/70 text-white text-xl font-semibold rounded z-50 pointer-events-auto"
-          @dragover.prevent
-          @dragleave.prevent="handleDragLeave"
-          @drop.prevent="handleOverlayDrop"
-        >
-          {{ t('fileManager.dropFilesHere', 'Drop files here to upload') }}
-        </div>
-
-        <div class="min-h-full p-4 md:p-5 space-y-4" :class="{ 'pointer-events-none': showExternalDropOverlay }">
-          <div class="rounded-2xl border border-border/60 bg-header/30 px-4 py-3">
-            <div class="text-[11px] uppercase tracking-[0.18em] text-text-secondary">
-              {{ t('fileManager.explorer.overviewTitle', '文件夹总览') }}
-            </div>
-            <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-foreground">
-              <span class="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1">
-                <i class="fas fa-crosshairs text-[11px] text-primary"></i>
-                <span class="truncate max-w-[420px]">{{ currentSftpManager?.currentPath?.value ?? '/' }}</span>
-              </span>
-              <span class="text-text-secondary text-xs">
-                {{ t('fileManager.explorer.overviewHint', '点击目录只展开和聚焦，不再切成单独目录列表。') }}
-              </span>
-            </div>
-          </div>
-
-          <div v-if="!currentSftpManager || currentSftpManager.isLoading.value" class="rounded-2xl border border-border/60 bg-background px-4 py-10 text-center text-text-secondary italic">
-            {{ t('fileManager.loading') }}
-          </div>
-
-          <div v-else-if="explorerOverviewSections.length === 0" class="rounded-2xl border border-border/60 bg-background px-4 py-10 text-center text-text-secondary italic">
-            {{ t('fileManager.explorer.noRoots', '暂无目录根，请先添加收藏路径或连接后浏览当前目录。') }}
-          </div>
-
-          <div v-else class="space-y-4">
-            <section
-              v-for="section in explorerOverviewSections"
-              :key="section.id"
-              class="rounded-2xl border border-border/60 bg-background/95 shadow-sm overflow-hidden"
-            >
-              <div class="flex items-center justify-between gap-3 border-b border-border/60 bg-header/35 px-4 py-3">
-                <button
-                  class="min-w-0 flex items-center gap-3 text-left"
-                  @click="handleOverviewSectionOpen(section)"
-                >
-                  <i class="fas fa-folder-tree text-primary"></i>
-                  <span class="min-w-0">
-                    <span class="block truncate text-sm font-semibold text-foreground">{{ section.label }}</span>
-                    <span class="block truncate text-[11px] text-text-secondary">{{ section.description }}</span>
-                  </span>
-                </button>
-                <div class="flex items-center gap-2">
-                  <span class="inline-flex items-center rounded-full border border-border/60 bg-background px-2.5 py-1 text-xs text-text-secondary">
-                    {{ section.rowCount }} {{ t('fileManager.explorer.folderCount', '个文件夹') }}
-                  </span>
-                  <button
-                    class="w-8 h-8 rounded-lg border border-border bg-background text-text-secondary hover:bg-header hover:text-foreground transition-colors"
-                    :title="t('common.refresh', '刷新')"
-                    @click="handleOverviewRefresh(section)"
-                  >
-                    <i class="fas fa-sync-alt text-xs"></i>
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="section.rows.length === 0" class="px-4 py-6 text-sm text-text-secondary">
-                {{ t('fileManager.explorer.emptyFolders', '这个根目录下暂时没有已加载的子文件夹，展开左侧目录可继续浏览。') }}
-              </div>
-
-              <div v-else class="p-3 space-y-1">
-                <div
-                  v-for="row in section.rows"
-                  :key="row.id"
-                  class="group flex items-center gap-3 rounded-xl border px-3 py-2 transition-colors"
-                  :class="isPathActive(row.path) ? 'border-primary bg-primary/10 text-foreground' : 'border-transparent text-text-secondary hover:border-border/60 hover:bg-header/40 hover:text-foreground'"
-                  :style="{ paddingLeft: `${0.9 + row.depth * 1.1}rem` }"
-                >
-                  <button
-                    class="w-5 h-5 flex items-center justify-center flex-shrink-0 text-[10px]"
-                    @click.stop="handleOverviewRowToggle(row)"
-                  >
-                    <i :class="row.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'"></i>
-                  </button>
-
-                  <button class="min-w-0 flex items-center gap-3 flex-1 text-left" @click="handleOverviewRowOpen(row)">
-                    <i class="fas fa-folder w-4 text-center text-primary flex-shrink-0"></i>
-                    <span class="min-w-0 flex-1">
-                      <span class="block truncate text-sm font-medium">{{ row.name }}</span>
-                      <span class="block truncate text-[11px]" :class="isPathActive(row.path) ? 'text-primary/80' : 'text-text-secondary/80'">
-                        {{ row.path }}
-                      </span>
-                    </span>
-                  </button>
-
-                  <span class="inline-flex items-center rounded-full border border-current/10 bg-black/5 px-2 py-0.5 text-[11px] flex-shrink-0">
-                    {{ row.childDirectoryCount }}
-                  </span>
-                </div>
-              </div>
-            </section>
           </div>
         </div>
       </div>

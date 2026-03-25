@@ -5,6 +5,8 @@
 <div align="center">
 
 [![Docker](https://img.shields.io/badge/-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)][docker-url] [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-4CAF50?style=flat-square)](https://github.com/Heavrnl/nexus-terminal/blob/main/LICENSE)
+<br>
+[中文](../README.md) | [English](./README_EN.md)
 
 [docker-url]: https://hub.docker.com/r/heavrnl/nexus-terminal-frontend
 
@@ -14,22 +16,31 @@
 
 ## 📖 Overview
 
-**Nexus Terminal** is a modern, feature-rich web-based SSH / RDP / VNC client dedicated to providing a highly customizable remote connection experience.
+**Nexus Terminal** is a modern, feature-rich web-based SSH / RDP / VNC client dedicated to providing a highly customizable remote connection experience. A standalone desktop client is also available.
+
+## 🧱 Project Structure
+
+This repository uses an `npm workspaces` monorepo layout:
+
+* `packages/frontend`: built with Vue 3, Vite, Pinia, xterm.js, and Monaco Editor; responsible for the web workspace, PWA, settings, and file editing experience
+* `packages/backend`: built with Express, SQLite, WebSocket, and SSH/SFTP; responsible for authentication, connection management, notifications, and audit logs
+* `packages/remote-gateway`: responsible for issuing RDP / VNC remote desktop tokens and bridging requests to `guacd`
 
 ## ✨ Features
 
 *   Manage SSH and SFTP connections with multiple tabs
 *   Support remote access to desktops via RDP/VNC protocol
+*   Support PWA and a standalone desktop client
 *   Utilizes Monaco Editor for online file editing
-*   Integrated multi-factor login security mechanisms, including human verification (hCaptcha, Google reCAPTCHA) and two-factor authentication (2FA)
+*   Support suspending and resuming SSH sessions so long-running tasks stay alive
+*   Integrated multi-factor login security mechanisms, including human verification (hCaptcha, Google reCAPTCHA), two-factor authentication (2FA), and Passkey
 *   Highly customizable interface themes and layout styles
+*   Focus Switcher for moving between input components with configurable order and hotkeys
 *   Built-in simple Docker container management panel for easy container operations
 *   Supports IP whitelisting and blacklisting, with automatic banning for abnormal access
-*   Notification system (e.g., login reminders, anomaly alerts)
-*   Audit logs for comprehensive recording of user behavior and system changes
+*   Notification system and audit logs for login, credential, and system events
 *   Lightweight Node.js-based backend with low resource consumption
 *   Built-in heartbeat keep-alive mechanism to ensure stable connections
-*   Focus Switcher: Allows switching between input components on the page, supporting customizable switching order and hotkeys.
 
 ## 📸 Screenshots
 
@@ -151,11 +162,12 @@ You can right-click in the SSH tab to select "Suspend Session" (long-press on mo
 
 ### File Manager Component
 
-1.  **Quick File Selection**: When the file search box has focus, you can use the `↑/↓` keys to quickly select files.
-2.  **Drag and Drop Upload**: Supports dragging files or folders from outside the browser for uploading. **Note:** When uploading a large number of files or deeply nested folders, it is recommended to compress them first to avoid browser freezes.
-3.  **Internal Drag and Drop**: You can directly drag and drop files or folders within the file manager to move them.
-4.  **Multiple Selection**: Hold down the `Ctrl` or `Shift` key to select multiple files or folders.
-5.  **Context Menu**: Provides common file operations such as copy, paste, cut, delete, rename, and modify permissions.
+1.  **Fixed Root Explorer**: The file area now uses a single explorer tree rooted at `/`. Expanding a directory shows both child folders and files in the same tree.
+2.  **Quick File Selection**: When the file search box has focus, you can use the `↑/↓` keys to quickly select files.
+3.  **Drag and Drop Upload**: Supports dragging files or folders from outside the browser for uploading. **Note:** When uploading a large number of files or deeply nested folders, it is recommended to compress them first to avoid browser freezes.
+4.  **Internal Drag and Drop**: You can directly drag and drop files or folders within the file manager to move them.
+5.  **Multiple Selection**: Hold down the `Ctrl` or `Shift` key to select multiple files or folders.
+6.  **Context Menu**: Provides common file operations such as copy, paste, cut, delete, rename, and modify permissions.
 
 ### Command History Component
 
@@ -190,6 +202,24 @@ You can right-click in the SSH tab to select "Suspend Session" (long-press on mo
 Since Apache Guacamole does not provide an ARMv7-compatible image for `guacd`, the RDP/VNC feature has been disabled, and related images will not be pulled for now.
 4. Since I don't have an ARM machine on hand, I haven't conducted actual testing, so unexpected bugs may occur during runtime.
 5. For data backup, please back up the **data** folder in the directory yourself. This project does not provide any backup functionality.
+
+## 🛠️ Development Notes
+
+### Common Commands
+
+```bash
+npm install
+npm run dev --workspace=@nexus-terminal/frontend
+npm run dev --workspace=@nexus-terminal/backend
+npm run dev --workspace=@nexus-terminal/remote-gateway
+npm run build --workspace=@nexus-terminal/frontend
+npm run build --workspace=@nexus-terminal/backend
+npm run build --workspace=@nexus-terminal/remote-gateway
+```
+
+### Local Knowledge Base
+
+The `.helloagents/` directory stores the local knowledge base, module index, and plan packages used for collaboration and change tracking. It is not a runtime dependency, but when the project structure, feature set, or collaboration conventions change, the related entries should be kept in sync.
 
 
 ## 💐 Acknowledgements

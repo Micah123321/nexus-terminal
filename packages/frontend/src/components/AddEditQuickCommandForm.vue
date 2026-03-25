@@ -11,9 +11,9 @@
       }"
     >
       <h2 class="m-0 mb-6 text-center text-xl font-semibold">{{ isEditing ? t('quickCommands.form.titleEdit', '编辑快捷指令') : t('quickCommands.form.titleAdd', '添加快捷指令') }}</h2>
-      <div class="flex-grow flex space-x-6 min-h-0">
+      <div class="flex-grow flex min-h-0 flex-col gap-4 lg:flex-row lg:gap-6">
         <!-- 左侧：变量管理 -->
-        <div class="w-1/3 border-r border-border/30 pr-6 flex flex-col overflow-y-auto">
+        <div class="flex max-h-[38vh] w-full flex-col overflow-y-auto border-b border-border/30 pb-4 lg:max-h-none lg:w-1/3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
           <h3 class="text-md font-medium mb-3 text-text-secondary">{{ t('quickCommands.form.variablesTitle', '变量管理') }}</h3>
           <div class="space-y-3 overflow-y-auto flex-grow pr-1 pb-2">
             <div v-if="localVariables.length === 0" class="text-sm text-text-tertiary p-2 border border-dashed border-border/30 rounded-md">
@@ -80,7 +80,7 @@
         </div>
 
         <!-- 右侧：现有表单 -->
-        <form @submit.prevent="handleSubmit" class="w-2/3 space-y-5 flex flex-col">
+        <form @submit.prevent="handleSubmit" class="flex w-full flex-col space-y-5 lg:w-2/3">
           <div class="flex-grow space-y-5 pr-1 flex flex-col">
             <div>
               <label for="qc-name" class="block mb-1.5 text-sm font-medium text-text-secondary">{{ t('quickCommands.form.name', '名称:') }}</label>
@@ -181,8 +181,8 @@ const isSubmitting = ref(false);
 
 const modalContentRef = ref<HTMLElement | null>(null);
 const commandTextareaRef = ref<HTMLTextAreaElement | null>(null);
-const R_MIN_WIDTH = 680; // 可调整大小的最小宽度 (像素)
-const R_MIN_HEIGHT = 520; // 可调整大小的最小高度 (像素)
+const R_MIN_WIDTH = 580; // 可调整大小的最小宽度 (像素)
+const R_MIN_HEIGHT = 440; // 可调整大小的最小高度 (像素)
 const placeholder = t('quickCommands.form.commandPlaceholder') + 'echo "Hello,\${USERNAME}"'
 
 const { width: resizableWidth, height: resizableHeight } = useResizable(modalContentRef, {
@@ -239,8 +239,8 @@ watch(() => formData.command, (newCommand) => {
 // 初始化表单数据 (如果是编辑模式)
 onMounted(() => {
   if (typeof window !== 'undefined') {
-    let initialW = Math.min(window.innerWidth * 0.82, 960); // 目标 82vw，最大 960px
-    let initialH = Math.min(window.innerHeight * 0.78, 720); // 目标 78vh，最大 720px
+    let initialW = Math.min(window.innerWidth * 0.74, 860); // 目标 74vw，最大 860px
+    let initialH = Math.min(window.innerHeight * 0.68, 600); // 目标 68vh，最大 600px
 
     initialW = Math.max(R_MIN_WIDTH, initialW);
     initialH = Math.max(R_MIN_HEIGHT, initialH);

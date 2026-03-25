@@ -16,18 +16,27 @@
 
 **星枢终端（Nexus Terminal）** 是一款现代化、功能丰富的 Web SSH / RDP / VNC 客户端，致力于提供高度可定制的远程连接体验。提供独立的本地桌面端。
 
+## 🧱 项目结构
+
+本仓库采用 `npm workspaces` 的 monorepo 结构：
+
+* `packages/frontend`：基于 Vue 3、Vite、Pinia、xterm.js 与 Monaco Editor，负责 Web 工作区、PWA、设置面板与文件编辑体验
+* `packages/backend`：基于 Express、SQLite、WebSocket、SSH/SFTP，负责认证、连接管理、通知与审计日志
+* `packages/remote-gateway`：负责 RDP / VNC 远程桌面令牌生成以及与 `guacd` 的桥接
+
 ## ✨ 功能特性
 
 *   多标签页管理 SSH 与 SFTP 连接  
 *   支持 RDP/VNC 协议
-*   支持 PWA
+*   支持 PWA 与独立桌面端
 *   采用 Monaco Editor，支持在线编辑文件  
-*   集成多重登录安全机制，包括人机验证（hCaptcha、Google reCAPTCHA）与双因素认证（2FA）  
+*   支持 SSH 会话挂起与恢复，长任务不中断
+*   集成多重登录安全机制，包括人机验证（hCaptcha、Google reCAPTCHA）、双因素认证（2FA）与 Passkey
 *   高度可定制的界面主题与布局风格
+*   提供 Focus Switcher，可自定义页面输入组件切换顺序与快捷键
 *   内置简易 Docker 容器管理面板，便于容器运维  
 *   支持 IP 白名单与黑名单，异常访问自动封禁  
-*   通知系统（如登录提醒、异常告警）  
-*   审计日志，全面记录用户行为与系统变更
+*   通知系统与审计日志，全面记录登录、凭据与系统变更
 *   基于 Node.js 的轻量级后端，资源占用低
 *   内置心跳保活机制，确保连接稳定
 
@@ -151,11 +160,12 @@ docker compose up -d
 
 ### 文件管理器组件
 
-1.  **文件快速选择**：在文件搜索框获得焦点时，可以使用 `↑/↓` 键快速选择文件。
-2.  **拖拽上传**：支持从浏览器外部拖拽文件或文件夹进行上传。**注意：** 上传大量文件或深层文件夹时，建议先进行打包压缩，以避免浏览器卡死。
-3.  **内部拖拽**：可以直接在文件管理器内部拖动文件或文件夹以进行移动。
-4.  **多选操作**：按住 `Ctrl` 或 `Shift` 键可以选择多个文件或文件夹。
-5.  **右键菜单**：提供复制、粘贴、剪切、删除、重命名、修改权限等常用文件操作。
+1.  **固定根节点资源管理器**：文件区采用固定 `/` 根节点的单栏资源管理器树，目录展开后会在同一棵树里同时显示子目录和文件。
+2.  **文件快速选择**：在文件搜索框获得焦点时，可以使用 `↑/↓` 键快速选择文件。
+3.  **拖拽上传**：支持从浏览器外部拖拽文件或文件夹进行上传。**注意：** 上传大量文件或深层文件夹时，建议先进行打包压缩，以避免浏览器卡死。
+4.  **内部拖拽**：可以直接在文件管理器内部拖动文件或文件夹以进行移动。
+5.  **多选操作**：按住 `Ctrl` 或 `Shift` 键可以选择多个文件或文件夹。
+6.  **右键菜单**：提供复制、粘贴、剪切、删除、重命名、修改权限等常用文件操作。
 
 ### 终端组件
 1.  Ctrl + Shift + C 复制，Ctrl + Shift + V 粘贴
@@ -185,6 +195,24 @@ docker compose up -d
 3. ARMv7 用户请使用此处的 [docker-compose.yml](https://github.com/Heavrnl/nexus-terminal/blob/main/doc/arm/docker-compose.yml)。由于 Apache Guacamole 未提供 guacd 的 ARMv7 架构镜像，所以禁用 RDP 功能，相关镜像暂时不再拉取。
 4. 关于数据备份，请自行备份目录下的 data 文件夹，本项目不提供相关备份功能。
 5. 由于浏览器限制，非https或者localhost无法复制终端内容，请使用https访问
+
+## 🛠️ 开发说明
+
+### 常用命令
+
+```bash
+npm install
+npm run dev --workspace=@nexus-terminal/frontend
+npm run dev --workspace=@nexus-terminal/backend
+npm run dev --workspace=@nexus-terminal/remote-gateway
+npm run build --workspace=@nexus-terminal/frontend
+npm run build --workspace=@nexus-terminal/backend
+npm run build --workspace=@nexus-terminal/remote-gateway
+```
+
+### 本地知识库
+
+仓库中的 `.helloagents/` 目录用于维护本地知识库、模块索引和方案包，方便协作与后续变更追踪。它不是运行时依赖，但当项目结构、功能说明或协作约定发生变化时，建议同步更新对应内容。
 
 
 ## 💐 致谢
