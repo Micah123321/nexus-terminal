@@ -364,6 +364,11 @@
     "status": {
       "never": "Never"
     },
+    "scopeExplorerTitle": "Tag Explorer",
+    "scopeHintCompact": "Tree nodes are grouped by tag path",
+    "scopeTreeSearch": "Search tag tree...",
+    "scopeSearchMode": "Matched paths are expanded",
+    "scopeTreeNoMatch": "No matching tree nodes",
     "untaggedGroup": "Untagged",
     "noUntaggedConnections": "No untagged connections found."
   },
@@ -1097,6 +1102,9 @@
     "height": "Height",
     "reconnect": "Reconnect",
     "retry": "Retry",
+    "reset": "Reset",
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
     "sortAscending": "Ascending",
     "sortDescending": "Descending",
     "restore": "Restore",

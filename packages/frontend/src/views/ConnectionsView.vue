@@ -1079,13 +1079,17 @@ onBeforeUnmount(() => {
                     'w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150',
                     getScopeNodeClass(node.id)
                   ]"
-                  :class="getTreeCountClass(node)"
                 >
                   <span class="flex items-center gap-2 min-w-0">
                     <i :class="['fas', node.id === 'all' ? 'fa-layer-group' : 'fa-tag', 'w-4 text-center']"></i>
                     <span class="truncate">{{ node.label }}</span>
                   </span>
-                  <span class="px-2 py-0.5 rounded-full text-xs border border-current/15 bg-black/10">
+                  <span
+                    :class="[
+                      'px-2 py-0.5 rounded-full text-xs border transition-colors',
+                      getTreeCountClass(node)
+                    ]"
+                  >
                     {{ node.count }}
                   </span>
                 </button>
@@ -1094,7 +1098,7 @@ onBeforeUnmount(() => {
 
             <section>
               <div class="px-2 mb-2 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary/80">
-                <span>{{ t('connections.table.tags', '标签资源管理器') }}</span>
+                <span>{{ t('connections.scopeExplorerTitle', '标签资源管理器') }}</span>
                 <span class="text-[11px] tracking-normal normal-case text-text-secondary">{{ visibleTagTreeNodes.length }}</span>
               </div>
 

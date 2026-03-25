@@ -100,6 +100,9 @@
         "reconnect": "再接続",
         "remove": "削除",
         "retry": "再試行",
+        "reset": "リセット",
+        "expandAll": "すべて展開",
+        "collapseAll": "すべて折りたたむ",
         "save": "保存",
         "saving": "保存中...",
         "saved": "保存済み",
@@ -265,6 +268,11 @@
         "status": {
             "never": "なし"
         },
+        "scopeExplorerTitle": "タグエクスプローラー",
+        "scopeHintCompact": "ツリーノードはタグパスごとに整理されます",
+        "scopeTreeSearch": "タグツリーを検索...",
+        "scopeSearchMode": "一致したパスを自動展開中",
+        "scopeTreeNoMatch": "一致するツリーノードはありません",
         "table": {
             "actions": "アクション",
             "authMethod": "認証方法",
