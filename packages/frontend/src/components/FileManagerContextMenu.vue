@@ -206,6 +206,15 @@ const showSubmenu = (label: string) => {
   expandedSubmenu.value = label;
 };
 
+const toggleSubmenu = (label: string) => {
+  if (expandedSubmenu.value === label) {
+    expandedSubmenu.value = null;
+    return;
+  }
+
+  showSubmenu(label);
+};
+
 const hideSubmenu = () => {
   closeTimeout = setTimeout(() => {
     expandedSubmenu.value = null;
@@ -302,6 +311,7 @@ onUnmounted(() => {
           ]"
           @mouseenter="showSubmenu(menuItem.label)"
           @mouseleave="hideSubmenu()"
+          @click.stop="!menuItem.disabled && toggleSubmenu(menuItem.label)"
         >
           <span class="flex items-center gap-3 min-w-0">
             <i v-if="menuItem.icon" :class="[menuItem.icon, 'w-4 text-center flex-shrink-0']"></i>

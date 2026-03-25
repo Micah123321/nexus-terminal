@@ -558,6 +558,13 @@
       "confirmDeleteMultiple": "确定要删除选定的 {count} 个项目吗？此操作不可撤销。",
       "confirmDeleteFolder": "确定要删除目录 \"{name}\" 及其所有内容吗？此操作不可撤销。",
       "confirmDeleteFile": "确定要删除文件 \"{name}\" 吗？此操作不可撤销。",
+      "confirmUploadToPath": "确认将 {count} 个拖入项目上传到 \"{path}\" 吗？",
+      "deleteIncludedFiles": "，以及 {count} 个文件",
+      "confirmDeleteDirectoryEmptyOnly": "将删除 {count} 个目录（{names}）{fileSummary}。\n\n先尝试仅删除空目录；非空目录会直接失败。",
+      "confirmDeleteDirectoryRecursive": "将强制递归删除 {count} 个目录（{names}）{fileSummary}。\n\n此操作不可撤销。",
+      "deleteEmptyOnly": "仅删除空目录",
+      "moreDeleteOptions": "更多选项",
+      "forceRecursiveDelete": "强制递归删除",
       "enterNewName": "请输入 \"{oldName}\" 的新名称:",
       "enterNewPermissions": "请输入 \"{name}\" 的新权限 (八进制, 例如 755):",
       "enterFileName": "请输入新文件的名称:"

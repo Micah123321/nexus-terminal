@@ -13,9 +13,10 @@ export interface UseFileManagerDragAndDropOptions {
 
   // 函数依赖
   joinPath: (base: string, target: string) => string; // 路径拼接函数
-  onFileUpload: (file: File, relativePath?: string, targetPath?: string) => void; // 修改：触发文件上传的回调，增加相对路径
+  onFileUpload: (file: File, relativePath?: string, targetPath?: string) => void | Promise<void>; // 修改：触发文件上传的回调，增加相对路径
   onFolderUpload: (files: FolderArchiveSource[], targetPath?: string) => void | Promise<void>;
   onItemMove: (sourceItem: FileListItem, newFullPath: string) => void; // 触发文件/文件夹移动的回调
+  onConfirmExternalDropTarget?: (targetPath: string, itemCount: number) => Promise<boolean>;
 }
 
 export function useFileManagerDragAndDrop(options: UseFileManagerDragAndDropOptions) {
@@ -27,6 +28,7 @@ export function useFileManagerDragAndDrop(options: UseFileManagerDragAndDropOpti
     onFileUpload,
     onFolderUpload,
     onItemMove,
+    onConfirmExternalDropTarget,
     selectedItems, // 获取传入的 selectedItems
     fileList,      // 获取传入的 fileList
   } = options;
@@ -241,6 +243,13 @@ export function useFileManagerDragAndDrop(options: UseFileManagerDragAndDropOpti
     const items = event.dataTransfer?.items;
     if (!items || items.length === 0) {
       return;
+    }
+
+    if (onConfirmExternalDropTarget) {
+      const confirmed = await onConfirmExternalDropTarget(targetPath, items.length);
+      if (!confirmed) {
+        return;
+      }
     }
 
     console.log(`[DragDrop] Processing ${items.length} dropped items for target path ${targetPath}.`);

@@ -23,6 +23,7 @@ import PathHistoryDropdown from './PathHistoryDropdown.vue';
 import { usePathHistoryStore } from '../stores/pathHistory.store';
 import FavoritePathsModal from './FavoritePathsModal.vue';
 import { useUiNotificationsStore } from '../stores/uiNotifications.store';
+import { useConfirmDialog } from '../composables/useConfirmDialog';
 
 
 type SftpManagerInstance = ReturnType<typeof createSftpActionsManager>;
@@ -121,6 +122,7 @@ const settingsStore = useSettingsStore(); // +++ 实例化 Settings Store +++
 const focusSwitcherStore = useFocusSwitcherStore(); // +++ 实例化焦点切换 Store +++
 const pathHistoryStore = usePathHistoryStore(); // +++ 实例化 PathHistoryStore +++
 const uiNotificationsStore = useUiNotificationsStore(); // +++ 实例化通知 store +++
+const { showConfirmDialog } = useConfirmDialog();
  
  // 从 Settings Store 获取共享设置
 const {
@@ -193,6 +195,15 @@ const startWidth = ref(0);
 
 // --- 辅助函数 ---
 const generateRequestId = (): string => `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+type ManagedUploadOptions = {
+  uploadId?: string;
+  displayName?: string;
+  mode?: 'file' | 'folder-archive';
+  detail?: string;
+  targetPath?: string;
+  afterUpload?: (context: { uploadId: string; remotePath: string; item: any }) => Promise<void>;
+};
 
 
 // UI 格式化函数保持不变
@@ -308,6 +319,110 @@ const createContextMenuItemFromTreeRow = (row: ExplorerTreeRow): FileListItem =>
   longname: row.path,
   attrs: row.item.attrs,
 });
+
+const refreshDirectory = (targetPath?: string) => {
+  if (!currentSftpManager.value) {
+    return;
+  }
+
+  currentSftpManager.value.loadDirectory(targetPath || currentSftpManager.value.currentPath.value, true);
+};
+
+const startManagedFileUpload = (
+  file: File,
+  relativePath?: string,
+  options?: ManagedUploadOptions,
+) => {
+  const resolvedTargetPath = options?.targetPath || currentSftpManager.value?.currentPath.value || '/';
+  const visiblePathAtStart = currentSftpManager.value?.currentPath.value || '/';
+  const shouldRefreshVisibleDirectory = resolvedTargetPath === visiblePathAtStart;
+
+  startFileUpload(file, relativePath, {
+    ...options,
+    targetPath: resolvedTargetPath,
+    afterUpload: async (context) => {
+      try {
+        await options?.afterUpload?.(context);
+      } finally {
+        if (
+          shouldRefreshVisibleDirectory &&
+          currentSftpManager.value?.currentPath.value === visiblePathAtStart &&
+          getParentPath(context.remotePath) === visiblePathAtStart
+        ) {
+          refreshDirectory(visiblePathAtStart);
+        }
+      }
+    },
+  });
+};
+
+const sendDeleteRequests = (items: FileListItem[], directoryRecursive = true) => {
+  if (!props.wsDeps.isConnected.value || !currentSftpManager.value) {
+    return;
+  }
+
+  items.forEach((item) => {
+    const targetPath = getItemAbsolutePath(item);
+    props.wsDeps.sendMessage({
+      type: item.attrs.isDirectory ? 'sftp:rmdir' : 'sftp:unlink',
+      requestId: generateRequestId(),
+      payload: item.attrs.isDirectory
+        ? { path: targetPath, recursive: directoryRecursive }
+        : { path: targetPath },
+    });
+  });
+
+  selectedItems.value.clear();
+};
+
+const confirmDirectoryDeleteMode = async (items: FileListItem[]): Promise<boolean | null> => {
+  const directoryItems = items.filter((item) => item.attrs.isDirectory);
+  const fileItems = items.filter((item) => !item.attrs.isDirectory);
+  const directoryNames = directoryItems.map((item) => item.filename).join('、');
+  const fileSummary = fileItems.length > 0
+    ? t('fileManager.prompts.deleteIncludedFiles', { count: fileItems.length })
+    : '';
+
+  const deleteEmptyOnly = await showConfirmDialog({
+    title: t('common.confirmationTitle', '请确认'),
+    message: t('fileManager.prompts.confirmDeleteDirectoryEmptyOnly', {
+      count: directoryItems.length,
+      names: directoryNames,
+      fileSummary,
+    }),
+    confirmText: t('fileManager.prompts.deleteEmptyOnly', '仅删除空目录'),
+    cancelText: t('fileManager.prompts.moreDeleteOptions', '更多选项'),
+  });
+
+  if (deleteEmptyOnly) {
+    return false;
+  }
+
+  const forceRecursiveDelete = await showConfirmDialog({
+    title: t('common.confirmationTitle', '请确认'),
+    message: t('fileManager.prompts.confirmDeleteDirectoryRecursive', {
+      count: directoryItems.length,
+      names: directoryNames,
+      fileSummary,
+    }),
+    confirmText: t('fileManager.prompts.forceRecursiveDelete', '强制递归删除'),
+    cancelText: t('fileManager.actions.cancel', '取消'),
+  });
+
+  return forceRecursiveDelete ? true : null;
+};
+
+const confirmExternalDropTarget = async (targetPath: string, itemCount: number): Promise<boolean> => {
+  return showConfirmDialog({
+    title: t('fileManager.actions.uploadMenu', '上传'),
+    message: t('fileManager.prompts.confirmUploadToPath', {
+      count: itemCount,
+      path: targetPath,
+    }),
+    confirmText: t('fileManager.actions.upload', '上传'),
+    cancelText: t('fileManager.actions.cancel', '取消'),
+  });
+};
 
 const explorerTreeRows = computed<ExplorerTreeRow[]>(() => {
   const rows: ExplorerTreeRow[] = [];
@@ -750,15 +865,7 @@ const handleModalConfirm = (value?: string) => {
  switch (currentActionType.value) {
    case 'delete':
      if (actionItems.value.length > 0) {
-       actionItems.value.forEach((item) => {
-         const targetPath = getItemAbsolutePath(item);
-         props.wsDeps.sendMessage({
-           type: item.attrs.isDirectory ? 'sftp:rmdir' : 'sftp:unlink',
-           requestId: generateRequestId(),
-           payload: { path: targetPath },
-         });
-       });
-       selectedItems.value.clear(); // Clear selection after delete
+       sendDeleteRequests(actionItems.value);
      }
      break;
    case 'rename':
@@ -812,7 +919,7 @@ const handleModalConfirm = (value?: string) => {
 
 
 // --- SFTP 操作处理函数 (定义在此处，供 Composable 使用) ---
-const handleDeleteSelectedClick = () => {
+const handleDeleteSelectedClick = async () => {
     // 修改：检查 currentSftpManager 是否存在
     if (!currentSftpManager.value) return;
     // 使用 props.wsDeps 和 currentSftpManager.value.fileList
@@ -820,28 +927,30 @@ const handleDeleteSelectedClick = () => {
     const selectedListItems = Array.from(selectedItems.value)
                                .map(filename => currentSftpManager.value?.fileList.value.find((f: FileListItem) => f.filename === filename))
                                .filter((item): item is FileListItem => item !== undefined);
-    const itemsToDelete =
+   const itemsToDelete =
       selectedListItems.length > 0
         ? selectedListItems
         : (contextTargetItem.value ? [contextTargetItem.value] : []);
    if (itemsToDelete.length === 0) return;
+
+   const hasDirectory = itemsToDelete.some((item) => item.attrs.isDirectory);
  
+    if (hasDirectory) {
+        const recursiveDelete = await confirmDirectoryDeleteMode(itemsToDelete);
+        if (recursiveDelete === null) {
+            return;
+        }
+
+        sendDeleteRequests(itemsToDelete, recursiveDelete);
+        return;
+    }
+
     // 根据设置决定是否显示确认模态框
     if (settingsStore.fileManagerShowDeleteConfirmationBoolean) {
         openActionModal('delete', null, itemsToDelete);
     } else {
         // 直接执行删除
-        if (currentSftpManager.value) {
-            itemsToDelete.forEach((item) => {
-                const targetPath = getItemAbsolutePath(item);
-                props.wsDeps.sendMessage({
-                  type: item.attrs.isDirectory ? 'sftp:rmdir' : 'sftp:unlink',
-                  requestId: generateRequestId(),
-                  payload: { path: targetPath },
-                });
-            });
-            selectedItems.value.clear(); // Clear selection after delete
-        }
+        sendDeleteRequests(itemsToDelete);
     }
 };
  
@@ -985,7 +1094,7 @@ const startFolderArchiveUpload = async (
       detail: t('fileManager.notifications.folderArchiveReady', { count: entryCount }),
     });
 
-    startFileUpload(archiveFile, undefined, {
+    startManagedFileUpload(archiveFile, undefined, {
       uploadId,
       displayName: folderName,
       mode: 'folder-archive',
@@ -1362,8 +1471,9 @@ const {
   joinPath: (base: string, target: string): string => {
       return currentSftpManager.value?.joinPath(base, target) ?? `${base}/${target}`.replace(/\/+/g, '/'); // 提供简单的默认实现
   },
-  onFileUpload: (file, relativePath, targetPath) => startFileUpload(file, relativePath, { targetPath }),
+  onFileUpload: (file, relativePath, targetPath) => startManagedFileUpload(file, relativePath, { targetPath }),
   onFolderUpload: startFolderArchiveUpload,
+  onConfirmExternalDropTarget: confirmExternalDropTarget,
   // 修改：确保在调用前检查 currentSftpManager.value
   onItemMove: (item, newName) => {
       currentSftpManager.value?.renameItem(item, newName);
@@ -1380,7 +1490,7 @@ const handleFileSelected = (event: Event) => {
     // 恢复使用 props.wsDeps.isConnected
     if (!input.files || !props.wsDeps.isConnected.value) return;
     // --- 修正：使用匿名函数包装 startFileUpload 调用 ---
-    Array.from(input.files).forEach(file => startFileUpload(file)); // 只传递 file 参数
+    Array.from(input.files).forEach(file => startManagedFileUpload(file)); // 只传递 file 参数
     // --- 结束修正 ---
     input.value = '';
 };
@@ -2033,6 +2143,22 @@ const handleNavigateToPathFromFavorites = (path: string) => {
   showFavoritePathsModal.value = false; // Close modal after navigation
 };
 
+const expandExplorerPathChain = (path: string | null | undefined) => {
+  explorerExpandedPaths.value['/'] = true;
+
+  if (!path || path === '/') {
+    return;
+  }
+
+  const segments = path.split('/').filter(Boolean);
+  let currentPath = '';
+
+  segments.forEach((segment) => {
+    currentPath += `/${segment}`;
+    explorerExpandedPaths.value[currentPath] = true;
+  });
+};
+
 const toggleDirectoryPath = (path: string, currentExpanded = false) => {
   const nextExpanded = !(explorerExpandedPaths.value[path] ?? currentExpanded);
   explorerExpandedPaths.value[path] = nextExpanded;
@@ -2103,13 +2229,19 @@ watch(
       return;
     }
 
-    if (explorerExpandedPaths.value['/'] === undefined) {
-      explorerExpandedPaths.value['/'] = true;
-    }
+    expandExplorerPathChain(manager.currentPath.value);
 
     if (!manager.fileTree.childrenLoaded || manager.currentPath.value !== '/') {
       manager.loadDirectory('/');
     }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => currentSftpManager.value?.currentPath.value,
+  (path) => {
+    expandExplorerPathChain(path);
   },
   { immediate: true },
 );

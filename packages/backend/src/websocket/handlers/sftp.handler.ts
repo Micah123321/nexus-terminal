@@ -57,7 +57,7 @@ export async function handleSftpOperation(
                  else throw new Error("Missing 'path' in payload for mkdir");
                  break;
             case 'sftp:rmdir':
-                 if (payload?.path) sftpService.rmdir(sessionId, payload.path, requestId);
+                 if (payload?.path) sftpService.rmdir(sessionId, payload.path, requestId, payload?.recursive !== false);
                  else throw new Error("Missing 'path' in payload for rmdir");
                  break;
             case 'sftp:unlink':

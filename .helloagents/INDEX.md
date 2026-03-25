@@ -1,4 +1,4 @@
-# Nexus Terminal 知识库
+﻿# Nexus Terminal 知识库
 
 > 本文件是知识库的入口点
 
@@ -31,7 +31,7 @@
 
 ```yaml
 kb_version: 2.3.7
-最后更新: 2026-03-26 02:00
+最后更新: 2026-03-26 03:15
 模块数量: 4
 待执行方案: 4
 ```
@@ -52,3 +52,4 @@ kb_version: 2.3.7
   - 需要历史决策: 搜索 CHANGELOG.md → 读取对应 archive/{YYYY-MM}/{方案包}/proposal.md
   - 继续之前任务: 读取 plan/{方案包}/*
 ```
+

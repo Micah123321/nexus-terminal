@@ -8,6 +8,12 @@
 - 2026-03-25：继续微调 `/workspace` Workbench，新增默认“快捷指令”标签、调整三栏宽度到更接近 xterminal 参考图，并修复终端区域鼠标悬停时指针异常消失的问题。
 
 ### 修复
+- **[frontend]**: 修复文件管理器右键子菜单点击无反应、拖拽上传目标不明确，以及目录删除后持续报 `No such file` 的稳定性问题 — by yinjianm
+  - 方案: [202603260324_file-manager-delete-upload-stability](archive/2026-03/202603260324_file-manager-delete-upload-stability/)
+- **[backend]**: 为 `sftp:rmdir` 增加 `recursive` 分支，让“仅删空目录”和“强制递归删除”分别落到 SFTP 原生删除与 `rm -rf` 链路 — by yinjianm
+  - 方案: [202603260324_file-manager-delete-upload-stability](archive/2026-03/202603260324_file-manager-delete-upload-stability/)
+- **[frontend]**: 修正新终端会话下文件树只保留当前路径链路的问题，改为先加载 `/` 根树再串行加载当前工作目录，确保 `/` 下同级目录可见 — by yinjianm
+  - 方案: [202603260310_file-manager-root-sibling-bootstrap](archive/2026-03/202603260310_file-manager-root-sibling-bootstrap/)
 - **[frontend]**: 重排文件区右键菜单结构，补齐终端子菜单、复制文件名和复制绝对路径等动作 — by yinjianm
   - 方案: [202603260228_file-context-menu-terminal-actions](archive/2026-03/202603260228_file-context-menu-terminal-actions/)
 - **[frontend]**: 将工作台文件区继续收敛为固定 `/` 根节点的单栏资源管理器树，并在树内同时显示目录与文件 — by yinjianm
@@ -26,6 +32,9 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 快速修改
+- **[frontend]**: 将前端关于页、版本检查和样式仓库默认链接切换到 `Micah123321/nexus-terminal`，并移除 Ko-fi 入口 — by yinjianm
+  - 类型: 快速修改（无方案包）
+  - 文件: packages/frontend/src/composables/settings/useVersionCheck.ts, packages/frontend/src/composables/settings/useAboutSection.ts, packages/frontend/src/components/settings/AboutSection.vue, packages/frontend/src/App.vue, packages/frontend/src/components/style-customizer/StyleCustomizerBackgroundTab.vue, package.json
 - **[frontend]**: 修正外部拖拽上传的落点路径判定，拖到哪个目录就上传到哪个目录，拖拽目录仍沿用先压缩再上传 — by yinjianm
   - 类型: 快速修改（无方案包）
   - 文件: packages/frontend/src/components/FileManager.vue, packages/frontend/src/composables/file-manager/useFileManagerDragAndDrop.ts, packages/frontend/src/composables/file-manager/useFolderArchiveUpload.ts, packages/frontend/src/composables/useFileUploader.ts

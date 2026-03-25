@@ -3,9 +3,39 @@ import axios from 'axios';
 import pkg from '../../../package.json'; // 路径相对于当前文件
 import { useI18n } from 'vue-i18n';
 
+const GITHUB_REPO_PATH = 'Micah123321/nexus-terminal';
+
 const normalizeVersionLabel = (version: string) => {
   const cleanVersion = version.startsWith('v') ? version.slice(1) : version;
   return cleanVersion.replace(/^(\d+\.\d+)\.0$/, '$1');
+};
+
+const parseVersion = (version: string) => {
+  const cleanVersion = version.startsWith('v') ? version.slice(1) : version;
+  const [major = '0', minor = '0', patch = '0'] = cleanVersion.split('.');
+
+  return [
+    Number.parseInt(major, 10) || 0,
+    Number.parseInt(minor, 10) || 0,
+    Number.parseInt(patch, 10) || 0,
+  ] as const;
+};
+
+const compareVersions = (left: string, right: string) => {
+  const leftParts = parseVersion(left);
+  const rightParts = parseVersion(right);
+
+  for (let index = 0; index < leftParts.length; index += 1) {
+    if (leftParts[index] > rightParts[index]) {
+      return 1;
+    }
+
+    if (leftParts[index] < rightParts[index]) {
+      return -1;
+    }
+  }
+
+  return 0;
 };
 
 export function useAboutSection() {
@@ -18,18 +48,9 @@ export function useAboutSection() {
   const versionCheckError = ref<string | null>(null);
 
   const isUpdateAvailable = computed(() => {
-    // 简单的字符串比较，假设 tag 格式为 vX.Y.Z 或 X.Y.Z
-    // 后端返回的 tag_name 可能包含 'v' 前缀，也可能不包含
-    // appVersion.value 通常不包含 'v'
     if (!latestVersion.value) return false;
 
-    const cleanLatestVersion = normalizeVersionLabel(latestVersion.value);
-    const cleanAppVersion = appVersion.value;
-
-    // 进行版本比较，更健壮的比较可能需要拆分版本号进行数字比较
-    // 此处简单比较字符串，对于 "1.0.10" > "1.0.9" 是有效的
-    // 但对于 "1.0.9" > "1.0.10" 可能会出错，如果需要更精确，可以引入 semver 库或手动比较
-    return cleanLatestVersion !== cleanAppVersion && cleanLatestVersion > cleanAppVersion;
+    return compareVersions(latestVersion.value, appVersion.value) > 0;
   });
 
 
@@ -38,7 +59,7 @@ export function useAboutSection() {
     versionCheckError.value = null;
     latestVersion.value = null; // Reset before check
     try {
-      const response = await axios.get('https://api.github.com/repos/Heavrnl/nexus-terminal/releases/latest', {
+      const response = await axios.get(`https://api.github.com/repos/${GITHUB_REPO_PATH}/releases/latest`, {
         // 移除 headers 以尝试解决潜在的CORS或请求问题，GitHub API 通常不需要特定 headers 进行公共读取
       });
       if (response.data && response.data.tag_name) {

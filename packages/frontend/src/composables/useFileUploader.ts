@@ -287,7 +287,9 @@ export function useFileUploader(
 
             const hook = uploadHooks.get(uploadId);
             if (hook?.afterUpload && remotePath) {
-                upload.status = 'decompressing';
+                if (upload.mode === 'folder-archive') {
+                    upload.status = 'decompressing';
+                }
                 try {
                     await hook.afterUpload({ uploadId, remotePath, item: upload });
                     upload.status = 'success';

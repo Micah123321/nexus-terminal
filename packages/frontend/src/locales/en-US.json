@@ -558,6 +558,13 @@
       "confirmDeleteMultiple": "Are you sure you want to delete the selected {count} items? This cannot be undone.",
       "confirmDeleteFolder": "Are you sure you want to delete the directory \"{name}\" and all its contents? This cannot be undone.",
       "confirmDeleteFile": "Are you sure you want to delete the file \"{name}\"? This cannot be undone.",
+      "confirmUploadToPath": "Upload {count} dropped item(s) to \"{path}\"?",
+      "deleteIncludedFiles": ", plus {count} file(s)",
+      "confirmDeleteDirectoryEmptyOnly": "This will delete {count} directory(s) ({names}){fileSummary}.\n\nIt will only remove empty directories. Non-empty directories will fail.",
+      "confirmDeleteDirectoryRecursive": "This will recursively delete {count} directory(s) ({names}){fileSummary}.\n\nThis action cannot be undone.",
+      "deleteEmptyOnly": "Delete Empty Only",
+      "moreDeleteOptions": "More Options",
+      "forceRecursiveDelete": "Force Recursive Delete",
       "enterNewName": "Enter the new name for \"{oldName}\":",
       "enterNewPermissions": "Enter new permissions for \"{name}\" (octal, e.g., 755):",
       "enterFileName": "Enter the name for the new file:"

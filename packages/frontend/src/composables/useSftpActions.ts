@@ -74,6 +74,18 @@ const basename = (targetPath: string): string => {
     return lastSlashIndex >= 0 ? normalized.substring(lastSlashIndex + 1) : normalized;
 };
 
+const isSameOrDescendantPath = (candidatePath: string | null | undefined, targetPath: string | null | undefined): boolean => {
+    if (!candidatePath || !targetPath) {
+        return false;
+    }
+
+    if (targetPath === '/') {
+        return candidatePath.startsWith('/');
+    }
+
+    return candidatePath === targetPath || candidatePath.startsWith(`${targetPath}/`);
+};
+
 // Helper function
 const sortFiles = (a: FileListItem, b: FileListItem): number => {
     if (a.attrs.isDirectory && !b.attrs.isDirectory) return -1;
@@ -147,6 +159,24 @@ export function createSftpActionsManager(
         console.log(`[SFTP ${instanceSessionId}] Cleaning up message handlers.`);
         unregisterCallbacks.forEach(cb => cb());
         unregisterCallbacks.length = 0; // 清空数组
+    };
+
+    const recoverFromInvalidPath = (invalidPath: string | null | undefined): string => {
+        const fallbackPath = dirname(invalidPath || currentPathRef.value || '/');
+
+        if (isSameOrDescendantPath(currentPathRef.value, invalidPath)) {
+            currentPathRef.value = fallbackPath;
+        }
+
+        if (isSameOrDescendantPath(loadingPath.value, invalidPath)) {
+            loadingPath.value = null;
+        }
+
+        if (isSameOrDescendantPath(pendingPathAfterRootBootstrap.value, invalidPath)) {
+            pendingPathAfterRootBootstrap.value = null;
+        }
+
+        return fallbackPath;
     };
 
     // 不再需要 clearSftpError 函数
@@ -824,6 +854,13 @@ export function createSftpActionsManager(
         // 类型断言，因为我们知道 readdir:error 的 payload 是 string
         const errorPayload = payload as string;
         const errorPath = message.path;
+        const missingPath = errorPath || loadingPath.value || currentPathRef.value;
+        const isMissingPathError = /No such file/i.test(errorPayload || '');
+        const shouldRecoverMissingPath = isMissingPathError && (
+            isSameOrDescendantPath(currentPathRef.value, missingPath) ||
+            isSameOrDescendantPath(loadingPath.value, missingPath) ||
+            isSameOrDescendantPath(pendingPathAfterRootBootstrap.value, missingPath)
+        );
 
         // 检查请求 ID 是否匹配当前加载请求
         if (message.requestId !== loadingRequestId.value) {
@@ -832,14 +869,22 @@ export function createSftpActionsManager(
         }
 
         console.error(`[SFTP ${instanceSessionId}] 加载目录 ${errorPath} 出错:`, errorPayload); // 日志改为中文
-        // error.value = errorPayload; // 使用通知
-        uiNotificationsStore.showError(`${t('fileManager.errors.loadDirectoryFailed')}: ${errorPayload}`);
 
         // 重置加载状态，因为这是匹配的响应
         isLoading.value = false;
         loadingRequestId.value = null;
         loadingPath.value = null;
         console.log(`[SFTP ${instanceSessionId}] isLoading reset after failed readdir for ${errorPath}.`);
+
+        if (shouldRecoverMissingPath) {
+            const fallbackPath = recoverFromInvalidPath(missingPath);
+            console.warn(`[SFTP ${instanceSessionId}] 路径 ${missingPath} 不存在，自动回退到 ${fallbackPath}。`);
+            loadDirectory(fallbackPath, true);
+            return;
+        }
+
+        // error.value = errorPayload; // 使用通知
+        uiNotificationsStore.showError(`${t('fileManager.errors.loadDirectoryFailed')}: ${errorPayload}`);
     };
 
     // 移除通用的 onActionSuccessRefresh
@@ -948,6 +993,9 @@ export function createSftpActionsManager(
         const removedPath = message.path;
         const parentPath = removedPath?.substring(0, removedPath.lastIndexOf('/')) || '/';
         const removedFilename = removedPath?.substring(removedPath.lastIndexOf('/') + 1);
+        const shouldRecoverPath = isSameOrDescendantPath(currentPathRef.value, removedPath) ||
+            isSameOrDescendantPath(loadingPath.value, removedPath) ||
+            isSameOrDescendantPath(pendingPathAfterRootBootstrap.value, removedPath);
 
         console.log(`[SFTP ${instanceSessionId}] 删除成功: ${removedPath}`);
         // *** 修改：直接修改文件树 ***
@@ -957,6 +1005,12 @@ export function createSftpActionsManager(
         if (removedNode && removedNode.attrs.isDirectory) {
             // 理论上 removeNodeFromTree 已经移除了它，这里可以加日志或额外清理
             console.log(`[SFTP ${instanceSessionId}] 目录 ${removedPath} 已从树中移除`);
+        }
+
+        if (shouldRecoverPath) {
+            const fallbackPath = recoverFromInvalidPath(removedPath);
+            console.log(`[SFTP ${instanceSessionId}] 当前或待加载路径已被删除，自动回退到 ${fallbackPath}`);
+            loadDirectory(fallbackPath, true);
         }
     };
 

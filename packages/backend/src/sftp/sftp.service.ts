@@ -489,15 +489,39 @@ export class SftpService {
         }
     }
 
-    /** 删除目录 (强制递归) */
-    async rmdir(sessionId: string, path: string, requestId: string): Promise<void> {
+    /** 删除目录 */
+    async rmdir(sessionId: string, path: string, requestId: string, recursive = true): Promise<void> {
         const state = this.clientStates.get(sessionId);
-        if (!state || !state.sshClient) { 
-            console.warn(`[SSH Exec] SSH 客户端未准备好，无法在 ${sessionId} 上执行 rmdir (ID: ${requestId})`);
+        if (!state || (!state.sshClient && recursive) || (!state.sftp && !recursive)) { 
+            console.warn(`[SSH Exec] 会话未准备好，无法在 ${sessionId} 上执行 rmdir (ID: ${requestId})`);
             state?.ws.send(JSON.stringify({ type: 'sftp:rmdir:error', path: path, payload: 'SSH 会话未就绪', requestId: requestId }));
             return;
         }
         console.debug(`[SSH Exec ${sessionId}] Received rmdir request for ${path} (ID: ${requestId})`);
+
+        if (!recursive) {
+            const sftp = state.sftp;
+            if (!sftp) {
+                state.ws.send(JSON.stringify({ type: 'sftp:rmdir:error', path: path, payload: 'SFTP 会话未就绪', requestId: requestId }));
+                return;
+            }
+
+            try {
+                sftp.rmdir(path, (err) => {
+                    if (err) {
+                        console.error(`[SFTP ${sessionId}] rmdir ${path} failed (ID: ${requestId}):`, err);
+                        state.ws.send(JSON.stringify({ type: 'sftp:rmdir:error', path: path, payload: `删除目录失败: ${err.message}`, requestId: requestId }));
+                    } else {
+                        console.log(`[SFTP ${sessionId}] rmdir ${path} success (ID: ${requestId})`);
+                        state.ws.send(JSON.stringify({ type: 'sftp:rmdir:success', path: path, requestId: requestId }));
+                    }
+                });
+            } catch (error: any) {
+                console.error(`[SFTP ${sessionId}] rmdir ${path} caught unexpected error (ID: ${requestId}):`, error);
+                state.ws.send(JSON.stringify({ type: 'sftp:rmdir:error', path: path, payload: `删除目录失败: ${error.message}`, requestId: requestId }));
+            }
+            return;
+        }
 
         // 第一种方案：尝试 rm -rf 命令
         const tryRmRfCommand = async (isSudo: boolean) => {
