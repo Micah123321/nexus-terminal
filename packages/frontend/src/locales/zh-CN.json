@@ -1632,7 +1632,9 @@
     "showTransferProgressTooltip": "显示/隐藏传输进度",
     "newTerminalTooltip": "为当前服务器新增终端",
     "openConnectionPickerTooltip": "选择其他服务器",
-    "terminalBadge": "终端 {index}"
+    "terminalBadge": "终端 {index}",
+    "serverEntryTitle": "{name} · {count} 个终端",
+    "terminalCount": "{count} 个终端"
   },
   "tabs": {
     "contextMenu": {

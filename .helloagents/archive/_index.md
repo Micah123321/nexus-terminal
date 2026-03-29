@@ -7,6 +7,9 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202603292139 | terminal-server-internal-tabs | - | - | - | ✅完成 |
+| 202603292247 | workbench-left-icon-rail | - | - | - | ✅完成 |
+| 202603292300 | terminal-tab-close-all | implementation | frontend | terminal-tab-close-all#D001 | ✅完成 |
 | 202603260527 | file-manager-context-submenu-regression | implementation | frontend | file-manager-context-submenu-regression#D001 | ✅完成 |
 | 202603260324 | file-manager-delete-upload-stability | implementation | frontend, backend | file-manager-delete-upload-stability#D001 | ✅完成 |
 | 202603260310 | file-manager-root-sibling-bootstrap | implementation | frontend | file-manager-root-sibling-bootstrap#D001 | ✅完成 |
@@ -40,6 +43,7 @@
 ## 按月归档
 
 ### 2026-03
+- [202603292300_terminal-tab-close-all](./2026-03/202603292300_terminal-tab-close-all/) - 为终端标签右键菜单补充“关闭全部”，并复用现有工作区会话清理链路
 - [202603260527_file-manager-context-submenu-regression](./2026-03/202603260527_file-manager-context-submenu-regression/) - 修复文件管理器右键菜单回归关闭竞态，恢复终端、上传、压缩等子菜单展开与点击
 - [202603260324_file-manager-delete-upload-stability](./2026-03/202603260324_file-manager-delete-upload-stability/) - 修复文件管理器右键子菜单点击、拖拽上传目标确认、目录删除模式选择与删除后路径失效回退
 - [202603260234_folder-upload-auto-zip](./2026-03/202603260234_folder-upload-auto-zip/) - 为文件管理器补齐上传文件夹入口，选择目录后先打包为 zip，再上传并自动触发远端解压

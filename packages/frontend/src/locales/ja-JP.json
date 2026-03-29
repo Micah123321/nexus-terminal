@@ -1590,6 +1590,19 @@
           "openConnectionPickerTooltip": "別のサーバーを選択",
           "terminalBadge": "端末 {index}"
       },
+      "tabs": {
+        "contextMenu": {
+          "close": "タブを閉じる",
+          "closeAll": "すべて閉じる",
+          "closeOthers": "他のタブを閉じる",
+          "closeRight": "右側のタブを閉じる",
+          "closeLeft": "左側のタブを閉じる",
+          "suspendSession": "セッションを中断",
+          "unmarkForSuspend": "中断マークを解除"
+        },
+        "closeTabTooltip": "タブを閉じる",
+        "newTabTooltip": "新しい接続タブ"
+      },
       "workspace": {
         "terminal": {
             "reconnectingMsg": "再接続を試行中..."

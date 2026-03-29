@@ -72,6 +72,64 @@ const activeConnectionId = computed(() => {
   return sessionStore.sessions.get(props.activeSessionId)?.connectionId ?? null;
 });
 
+const getConnectionInfoById = (connectionId: string) =>
+  connectionsStore.connections.find((connection) => connection.id === Number(connectionId)) ?? null;
+
+const isSshConnection = (connectionId: string) => getConnectionInfoById(connectionId)?.type === 'SSH';
+
+const getConnectionSessions = (connectionId: string) =>
+  draggableSessions.value.filter((session) => session.connectionId === connectionId);
+
+const getRepresentativeSessionId = (connectionId: string, fallbackSessionId: string) => {
+  if (activeConnectionId.value === connectionId && props.activeSessionId) {
+    return props.activeSessionId;
+  }
+
+  return getConnectionSessions(connectionId)[0]?.sessionId ?? fallbackSessionId;
+};
+
+const getConnectionSessionCount = (connectionId: string) => getConnectionSessions(connectionId).length;
+
+const shouldRenderTopLevelItem = (session: SessionTabInfoWithStatus, index: number) => {
+  if (!isSshConnection(session.connectionId)) {
+    return true;
+  }
+
+  return isGroupStart(index);
+};
+
+const hasCollapsedSshGroups = computed(() =>
+  draggableSessions.value.some((session, index) => isSshConnection(session.connectionId) && !isGroupStart(index))
+);
+
+const activateTopLevelItem = (session: SessionTabInfoWithStatus) => {
+  if (isSshConnection(session.connectionId)) {
+    activateSession(getRepresentativeSessionId(session.connectionId, session.sessionId));
+    return;
+  }
+
+  activateSession(session.sessionId);
+};
+
+const showTopLevelContextMenu = (event: MouseEvent, session: SessionTabInfoWithStatus) => {
+  const targetSessionId = isSshConnection(session.connectionId)
+    ? getRepresentativeSessionId(session.connectionId, session.sessionId)
+    : session.sessionId;
+
+  showContextMenu(event, targetSessionId);
+};
+
+const getTopLevelItemTitle = (session: SessionTabInfoWithStatus) => {
+  if (!isSshConnection(session.connectionId)) {
+    return `${session.connectionName} / ${t('terminalTabBar.terminalBadge', { index: session.terminalIndex })}`;
+  }
+
+  return t('terminalTabBar.serverEntryTitle', {
+    name: session.connectionName,
+    count: getConnectionSessionCount(session.connectionId),
+  });
+};
+
 const openConnectionPicker = () => {
   showConnectionListPopup.value = true;
 };
@@ -83,27 +141,6 @@ const isGroupStart = (index: number) => {
   const previousSession = getSessionAtIndex(index - 1);
 
   return Boolean(currentSession && (!previousSession || previousSession.connectionId !== currentSession.connectionId));
-};
-
-const isGroupEnd = (index: number) => {
-  const currentSession = getSessionAtIndex(index);
-  const nextSession = getSessionAtIndex(index + 1);
-
-  return Boolean(currentSession && (!nextSession || nextSession.connectionId !== currentSession.connectionId));
-};
-
-const getConnectionInfoById = (connectionId: string) =>
-  connectionsStore.connections.find((connection) => connection.id === Number(connectionId)) ?? null;
-
-const canOpenSiblingTerminal = (connectionId: string) => getConnectionInfoById(connectionId)?.type === 'SSH';
-
-const openNewTerminalForConnection = (connectionId: string) => {
-  const connectionInfo = getConnectionInfoById(connectionId);
-  if (!connectionInfo || connectionInfo.type !== 'SSH') {
-    return;
-  }
-
-  sessionStore.handleOpenNewSession(connectionInfo.id);
 };
 
 // + Watch prop changes to update local state
@@ -484,93 +521,75 @@ onBeforeUnmount(() => {
         ghost-class="opacity-50"
         drag-class="opacity-75"
         animation="150"
-        :disabled="props.isMobile"
+        :disabled="props.isMobile || hasCollapsedSshGroups"
       >
         <template #item="{ element: session, index }">
           <li
+            v-if="shouldRenderTopLevelItem(session, index)"
             :key="session.sessionId"
             :class="['flex h-full flex-shrink-0 items-stretch py-1', isGroupStart(index) ? 'pl-1' : 'pl-0']"
             @dragstart="handleDragStart"
           >
-            <div
+            <button
+              v-if="isSshConnection(session.connectionId)"
+              type="button"
               :class="[
-                'flex h-full items-stretch overflow-hidden border transition-all duration-150',
+                'group flex h-full items-center gap-2 rounded-md border px-3 text-left transition-all duration-150',
                 session.connectionId === activeConnectionId
-                  ? 'border-primary/60 bg-primary/10 shadow-[0_0_0_1px_rgba(34,197,94,0.18)]'
-                  : 'border-border/70 bg-header/80 shadow-[0_0_0_1px_rgba(0,0,0,0.08)]',
-                isGroupStart(index) && isGroupEnd(index)
-                  ? 'rounded-md'
-                  : isGroupStart(index)
-                  ? 'rounded-l-md rounded-r-none'
-                  : isGroupEnd(index)
-                  ? '-ml-px rounded-r-md rounded-l-none'
-                  : '-ml-px rounded-none',
+                  ? 'border-primary/60 bg-primary/10 text-foreground shadow-[0_0_0_1px_rgba(34,197,94,0.18)]'
+                  : 'border-border/70 bg-header/80 text-text-secondary shadow-[0_0_0_1px_rgba(0,0,0,0.08)] hover:bg-border hover:text-foreground',
               ]"
+              :title="getTopLevelItemTitle(session)"
+              @click="activateTopLevelItem(session)"
+              @contextmenu.prevent="showTopLevelContextMenu($event, session)"
             >
-              <div
-                v-if="isGroupStart(index)"
+              <i class="fas fa-server text-[11px] text-primary/80"></i>
+              <span class="max-w-[180px] truncate text-xs font-semibold tracking-wide">
+                {{ session.connectionName }}
+              </span>
+              <span
                 :class="[
-                  'flex max-w-[160px] items-center border-r px-2.5 text-xs font-semibold tracking-wide',
+                  'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
                   session.connectionId === activeConnectionId
-                    ? 'border-primary/50 bg-primary/15 text-foreground'
-                    : 'border-border/70 bg-black/15 text-text-secondary',
+                    ? 'bg-primary/15 text-foreground/90'
+                    : 'bg-black/20 text-text-secondary group-hover:text-foreground',
                 ]"
-                :title="session.connectionName"
               >
-                <i class="fas fa-server mr-1.5 text-[10px] text-primary/80"></i>
-                <span class="truncate">{{ session.connectionName }}</span>
-              </div>
-
-              <div
-                :class="[
-                  'group flex h-full items-center px-2.5 transition-colors duration-150 relative',
-                  session.sessionId === activeSessionId
-                    ? 'bg-background text-foreground shadow-[inset_0_1px_0_rgba(34,197,94,0.15)]'
-                    : session.connectionId === activeConnectionId
-                    ? 'bg-primary/5 text-foreground/85 hover:bg-primary/10'
-                    : 'bg-header text-text-secondary hover:bg-border',
-                  !isGroupStart(index) ? 'border-l border-border/60' : '',
-                ]"
-                @click="activateSession(session.sessionId)"
-                @contextmenu.prevent="showContextMenu($event, session.sessionId)"
-                @touchstart="handleTouchStart($event, session.sessionId)"
-                @touchend="handleTouchEnd($event)"
-                :title="`${session.connectionName} / ${t('terminalTabBar.terminalBadge', { index: session.terminalIndex })}`"
-              >
-                <span :class="['w-2 h-2 rounded-full mr-2 flex-shrink-0',
-                               session.isMarkedForSuspend ? 'bg-blue-500' :
-                               session.status === 'connected' ? 'bg-green-500' :
-                               session.status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
-                               session.status === 'disconnected' ? 'bg-red-500' : 'bg-gray-400']"></span>
-                <span class="whitespace-nowrap text-[11px] font-medium">
-                  {{ t('terminalTabBar.terminalBadge', { index: session.terminalIndex }) }}
-                </span>
-                <button
-                  type="button"
-                  class="ml-2 rounded-full p-0.5 text-text-secondary opacity-0 transition-opacity duration-150 hover:bg-border hover:text-foreground group-hover:opacity-100"
-                  :class="{ 'text-foreground hover:bg-header': session.sessionId === activeSessionId }"
-                  @click="closeSession($event, session.sessionId)"
-                  :title="$t('tabs.closeTabTooltip')"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
+                {{ getConnectionSessionCount(session.connectionId) }}
+              </span>
+            </button>
+            <div
+              v-else
+              :class="[
+                'group flex h-full items-center overflow-hidden rounded-md border px-2.5 transition-all duration-150',
+                session.sessionId === activeSessionId
+                  ? 'border-primary/60 bg-primary/10 text-foreground shadow-[0_0_0_1px_rgba(34,197,94,0.18)]'
+                  : 'border-border/70 bg-header/80 text-text-secondary shadow-[0_0_0_1px_rgba(0,0,0,0.08)] hover:bg-border hover:text-foreground',
+              ]"
+              @click="activateTopLevelItem(session)"
+              @contextmenu.prevent="showTopLevelContextMenu($event, session)"
+              @touchstart="handleTouchStart($event, session.sessionId)"
+              @touchend="handleTouchEnd($event)"
+              :title="getTopLevelItemTitle(session)"
+            >
+              <span :class="['w-2 h-2 rounded-full mr-2 flex-shrink-0',
+                             session.isMarkedForSuspend ? 'bg-blue-500' :
+                             session.status === 'connected' ? 'bg-green-500' :
+                             session.status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                             session.status === 'disconnected' ? 'bg-red-500' : 'bg-gray-400']"></span>
+              <span class="max-w-[180px] truncate text-[11px] font-medium">
+                {{ session.connectionName }}
+              </span>
               <button
-                v-if="isGroupEnd(index) && canOpenSiblingTerminal(session.connectionId)"
                 type="button"
-                :class="[
-                  'flex h-full items-center border-l px-2.5 transition-colors duration-150',
-                  session.connectionId === activeConnectionId
-                    ? 'border-primary/40 bg-primary/10 text-foreground/80 hover:bg-primary/15 hover:text-foreground'
-                    : 'border-border/60 bg-black/10 text-text-secondary hover:bg-border hover:text-foreground',
-                ]"
-                @click.stop="openNewTerminalForConnection(session.connectionId)"
-                :title="t('terminalTabBar.newTerminalTooltip')"
+                class="ml-2 rounded-full p-0.5 text-text-secondary opacity-0 transition-opacity duration-150 hover:bg-border hover:text-foreground group-hover:opacity-100"
+                :class="{ 'text-foreground hover:bg-header': session.sessionId === activeSessionId }"
+                @click="closeSession($event, session.sessionId)"
+                :title="$t('tabs.closeTabTooltip')"
               >
-                <i class="fas fa-plus text-[11px]"></i>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </li>

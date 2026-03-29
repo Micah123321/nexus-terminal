@@ -8,7 +8,9 @@
 - 2026-03-25：继续微调 `/workspace` Workbench，新增默认“快捷指令”标签、调整三栏宽度到更接近 xterminal 参考图，并修复终端区域鼠标悬停时指针异常消失的问题。
 
 ### 修复
-- **[frontend]**: 修复文件管理器右键菜单的回归关闭竞态，避免“终端 / 上传 / 压缩”子菜单在展开或点击前被捕获阶段监听提前关闭 — by yinjianm
+- **[frontend]**: 将 `/workspace` 的 SSH 多终端展示从顶部组头胶囊改为“顶部只切服务器、终端面板内部切换同服务器多个终端”，修正服务器与终端的视觉层级 - by yinjianm
+  - 方案: [202603292139_terminal-server-internal-tabs](archive/2026-03/202603292139_terminal-server-internal-tabs/)
+- **[frontend]**: 修复文件管理器右键菜单的回归关闭竞态，避免“终端 / 上传 / 压缩”子菜单在展开或点击前被捕获阶段监听提前关闭 - by yinjianm
   - 方案: [202603260527_file-manager-context-submenu-regression](archive/2026-03/202603260527_file-manager-context-submenu-regression/)
 - **[frontend]**: 修复文件管理器右键子菜单点击无反应、拖拽上传目标不明确，以及目录删除后持续报 `No such file` 的稳定性问题 — by yinjianm
   - 方案: [202603260324_file-manager-delete-upload-stability](archive/2026-03/202603260324_file-manager-delete-upload-stability/)

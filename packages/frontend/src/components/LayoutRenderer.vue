@@ -12,6 +12,7 @@ import { useSettingsStore } from '../stores/settings.store';
 import { useAppearanceStore } from '../stores/appearance.store'; // +++ Import appearance store +++
 import { useSidebarResize } from '../composables/useSidebarResize';
 import { storeToRefs } from 'pinia';
+import type { SessionTabInfoWithStatus } from '../stores/session/types';
 
 
 // --- Props ---
@@ -66,7 +67,7 @@ const {
   terminalCustomHTML,
 } = storeToRefs(appearanceStore);
 
-const { activeSession } = storeToRefs(sessionStore);
+const { activeSession, sessionTabsWithStatus } = storeToRefs(sessionStore);
 const { workspaceSidebarPersistentBoolean, getSidebarPaneWidth } = storeToRefs(settingsStore);
 const { sidebarPanes } = storeToRefs(layoutStore);
 const { orderedTabs: editorTabsFromStore, activeTabId: activeEditorTabIdFromStore } = storeToRefs(fileEditorStore); // <-- Get editor state
@@ -124,6 +125,47 @@ const hasSshSessions = computed(() => {
  }
  return false;
 });
+
+const activeTerminalConnectionId = computed(() => {
+  if (!props.activeSessionId) {
+    return null;
+  }
+
+  const sessionState = sessionStore.sessions.get(props.activeSessionId);
+  if (!sessionState?.terminalManager) {
+    return null;
+  }
+
+  return sessionState.connectionId;
+});
+
+const activeTerminalSessions = computed<SessionTabInfoWithStatus[]>(() => {
+  if (!activeTerminalConnectionId.value) {
+    return [];
+  }
+
+  return sessionTabsWithStatus.value.filter((session) => {
+    const sessionState = sessionStore.sessions.get(session.sessionId);
+    return session.connectionId === activeTerminalConnectionId.value && Boolean(sessionState?.terminalManager);
+  });
+});
+
+const activeTerminalConnectionName = computed(() => activeTerminalSessions.value[0]?.connectionName ?? '');
+
+const openTerminalSibling = () => {
+  if (!activeTerminalConnectionId.value) {
+    return;
+  }
+
+  sessionStore.handleOpenNewSession(activeTerminalConnectionId.value);
+};
+
+const closeTerminalSession = (sessionId: string) => {
+  sessionStore.closeSession(sessionId);
+};
+
+const getTerminalSessionTitle = (session: SessionTabInfoWithStatus) =>
+  `${session.connectionName} / ${t('terminalTabBar.terminalBadge', { index: session.terminalIndex })}`;
 
 // 面板标签 (Similar to LayoutConfigurator)
 const paneLabels = computed(() => ({
@@ -573,9 +615,67 @@ onBeforeUnmount(() => {
                 <!-- Terminal Pane: Render ALL SSH sessions, show only the active one -->
                <template v-if="layoutNode.component === 'terminal'">
                    <div
-                       class="terminal-pane-container relative flex-grow overflow-hidden"
+                       class="terminal-pane-container flex h-full flex-col overflow-hidden"
                        :class="{ 'has-global-terminal-background': isTerminalBackgroundEnabled, 'bg-background': !isTerminalBackgroundEnabled }"
                    >
+                       <div
+                           v-if="activeTerminalSessions.length > 0"
+                           class="flex items-center gap-2 border-b border-border bg-header/95 px-2 py-1.5"
+                       >
+                           <div class="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background/70 px-2.5 py-1 text-xs text-text-secondary">
+                               <i class="fas fa-server text-[10px] text-primary/80"></i>
+                               <span class="truncate font-semibold text-foreground">{{ activeTerminalConnectionName }}</span>
+                               <span class="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-foreground/80">
+                                   {{ t('terminalTabBar.terminalCount', { count: activeTerminalSessions.length }) }}
+                               </span>
+                           </div>
+                           <div class="flex min-w-0 flex-1 items-center overflow-x-auto">
+                               <div
+                                   v-for="session in activeTerminalSessions"
+                                   :key="session.sessionId"
+                                   role="button"
+                                   tabindex="0"
+                                   :class="[
+                                     'group flex h-8 items-center rounded-md border px-2.5 text-[11px] font-medium transition-colors duration-150',
+                                     session.sessionId === activeSessionId
+                                       ? 'border-primary/60 bg-primary/10 text-foreground'
+                                       : 'border-transparent bg-background/70 text-text-secondary hover:border-border hover:bg-border hover:text-foreground',
+                                   ]"
+                                   :title="getTerminalSessionTitle(session)"
+                                   @click="sessionStore.activateSession(session.sessionId)"
+                                   @keydown.enter.prevent="sessionStore.activateSession(session.sessionId)"
+                                   @keydown.space.prevent="sessionStore.activateSession(session.sessionId)"
+                               >
+                                   <span :class="['mr-2 h-2 w-2 rounded-full',
+                                                  session.isMarkedForSuspend ? 'bg-blue-500' :
+                                                  session.status === 'connected' ? 'bg-green-500' :
+                                                  session.status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                                                  session.status === 'disconnected' ? 'bg-red-500' : 'bg-gray-400']"></span>
+                                   <span class="whitespace-nowrap">
+                                       {{ t('terminalTabBar.terminalBadge', { index: session.terminalIndex }) }}
+                                   </span>
+                                   <button
+                                       type="button"
+                                       class="ml-2 rounded-full p-0.5 text-text-secondary opacity-0 transition-opacity duration-150 hover:bg-header hover:text-foreground group-hover:opacity-100"
+                                       @click.stop="closeTerminalSession(session.sessionId)"
+                                       :title="$t('tabs.closeTabTooltip')"
+                                   >
+                                       <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                       </svg>
+                                   </button>
+                               </div>
+                           </div>
+                           <button
+                               type="button"
+                               class="flex h-8 items-center justify-center rounded-md border border-border/70 bg-background/70 px-2.5 text-text-secondary transition-colors duration-150 hover:bg-border hover:text-foreground"
+                               :title="t('terminalTabBar.newTerminalTooltip')"
+                               @click="openTerminalSibling"
+                           >
+                               <i class="fas fa-plus text-[11px]"></i>
+                           </button>
+                       </div>
+                       <div class="relative flex-1 overflow-hidden">
                        <!-- Shared Background Layers -->
                        <div
                            v-if="isTerminalBackgroundEnabled"
@@ -631,6 +731,7 @@ onBeforeUnmount(() => {
                                <span class="text-lg font-medium text-text-secondary mb-2">{{ activeSessionId ? t('layout.noSshSessionActive.title', '无活动的 SSH 会话') : t('layout.noActiveSession.title') }}</span>
                                <div class="text-xs text-text-secondary mt-2">{{ activeSessionId ? t('layout.noSshSessionActive.message', '请激活一个 SSH 会话以使用此终端面板。') : t('layout.noActiveSession.message') }}</div>
                            </div>
+                       </div>
                        </div>
                    </div>
                </template>

@@ -97,84 +97,94 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-    <div class="border-b border-border bg-header px-3 py-3">
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <h3 class="text-sm font-semibold text-foreground">
-            {{ t('workspace.workbench.title', 'Workbench') }}
-          </h3>
-          <p class="mt-1 text-xs text-text-secondary">
-            {{ activeSessionName || t('workspace.workbench.noSession', '未激活会话') }}
-          </p>
-        </div>
-        <span class="rounded-full border border-border bg-background px-2 py-1 text-[11px] font-medium text-text-secondary">
-          {{ t('workspace.workbench.label', '工作台') }}
-        </span>
-      </div>
-      <div class="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
-        <button
-          v-for="tab in workbenchTabs"
-          :key="tab.id"
-          type="button"
-          @click="activeWorkbenchTab = tab.id"
-          :class="[
-            'inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-            activeWorkbenchTab === tab.id
-              ? 'border-primary bg-primary text-white shadow-sm'
-              : 'border-border bg-background text-text-secondary hover:border-primary/40 hover:text-foreground'
-          ]"
-        >
-          <i :class="tab.icon"></i>
-          <span>{{ tab.label }}</span>
-        </button>
-      </div>
-    </div>
+  <div class="flex h-full min-h-0 overflow-hidden bg-background">
+    <aside class="workbench-rail flex w-14 flex-shrink-0 flex-col items-center gap-2 border-r border-border px-2 py-3">
+      <button
+        v-for="tab in workbenchTabs"
+        :key="tab.id"
+        type="button"
+        :title="tab.label"
+        :aria-label="tab.label"
+        @click="activeWorkbenchTab = tab.id"
+        :class="[
+          'inline-flex h-10 w-10 items-center justify-center rounded-xl border text-sm transition-colors',
+          activeWorkbenchTab === tab.id
+            ? 'border-primary bg-primary text-white shadow-sm'
+            : 'border-transparent bg-transparent text-text-secondary hover:border-primary/20 hover:bg-background hover:text-foreground'
+        ]"
+      >
+        <i :class="tab.icon"></i>
+      </button>
+    </aside>
 
-    <div class="relative flex-1 min-h-0 overflow-hidden bg-background">
-      <div v-show="activeWorkbenchTab === 'quickCommands'" class="absolute inset-0 min-h-0 workbench-quick-commands">
-        <QuickCommandsView />
-      </div>
-
-      <div v-show="activeWorkbenchTab === 'files'" class="absolute inset-0 min-h-0">
-        <FileManager
-          v-if="hasFileManagerContext"
-          :session-id="fileManagerSessionId"
-          :instance-id="fileManagerInstanceId"
-          :db-connection-id="fileManagerConnectionId"
-          :ws-deps="fileManagerWsDeps"
-          class="h-full"
-        />
-        <div
-          v-else
-          class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-text-secondary"
-        >
-          <i class="fas fa-plug text-3xl"></i>
-          <div class="text-sm font-medium">
-            {{ t('layout.noActiveSession.title', '没有活动的会话') }}
+    <div class="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <div class="border-b border-border bg-header px-4 py-3">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-sm font-semibold text-foreground">
+              {{ t('workspace.workbench.title', 'Workbench') }}
+            </h3>
+            <p class="mt-1 truncate text-xs text-text-secondary">
+              {{ activeSessionName || t('workspace.workbench.noSession', '未激活会话') }}
+            </p>
           </div>
-          <div class="text-xs">
-            {{ t('workspace.workbench.fileManagerHint', '激活一个 SSH 会话后即可浏览远程文件。') }}
-          </div>
+          <span class="rounded-full border border-border bg-background px-2 py-1 text-[11px] font-medium text-text-secondary">
+            {{ t('workspace.workbench.label', '工作台') }}
+          </span>
         </div>
       </div>
 
-      <div v-show="activeWorkbenchTab === 'history'" class="absolute inset-0 min-h-0">
-        <CommandHistoryView />
-      </div>
+      <div class="relative flex-1 min-h-0 overflow-hidden bg-background">
+        <div v-show="activeWorkbenchTab === 'quickCommands'" class="absolute inset-0 min-h-0 workbench-quick-commands">
+          <QuickCommandsView />
+        </div>
 
-      <div v-show="activeWorkbenchTab === 'editor'" class="absolute inset-0 min-h-0">
-        <FileEditorContainer
-          :tabs="tabs"
-          :active-tab-id="activeTabId"
-          :session-id="sessionId"
-        />
+        <div v-show="activeWorkbenchTab === 'files'" class="absolute inset-0 min-h-0">
+          <FileManager
+            v-if="hasFileManagerContext"
+            :session-id="fileManagerSessionId"
+            :instance-id="fileManagerInstanceId"
+            :db-connection-id="fileManagerConnectionId"
+            :ws-deps="fileManagerWsDeps"
+            class="h-full"
+          />
+          <div
+            v-else
+            class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-text-secondary"
+          >
+            <i class="fas fa-plug text-3xl"></i>
+            <div class="text-sm font-medium">
+              {{ t('layout.noActiveSession.title', '没有活动的会话') }}
+            </div>
+            <div class="text-xs">
+              {{ t('workspace.workbench.fileManagerHint', '激活一个 SSH 会话后即可浏览远程文件。') }}
+            </div>
+          </div>
+        </div>
+
+        <div v-show="activeWorkbenchTab === 'history'" class="absolute inset-0 min-h-0">
+          <CommandHistoryView />
+        </div>
+
+        <div v-show="activeWorkbenchTab === 'editor'" class="absolute inset-0 min-h-0">
+          <FileEditorContainer
+            :tabs="tabs"
+            :active-tab-id="activeTabId"
+            :session-id="sessionId"
+          />
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.workbench-rail {
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.94) 0%, rgba(17, 24, 39, 0.98) 100%);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.04);
+}
+
 .workbench-quick-commands {
   background:
     linear-gradient(180deg, rgba(15, 17, 22, 0.98) 0%, rgba(12, 14, 18, 1) 100%);

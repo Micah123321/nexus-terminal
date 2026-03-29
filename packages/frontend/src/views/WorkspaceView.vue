@@ -169,6 +169,7 @@ onMounted(() => {
   // 来自 TerminalTabBar 的事件
   subscribeToWorkspaceEvents('session:activate', (payload) => sessionStore.activateSession(payload.sessionId));
   subscribeToWorkspaceEvents('session:close', (payload) => sessionStore.closeSession(payload.sessionId));
+  subscribeToWorkspaceEvents('session:closeAll', handleCloseAllSessions);
   subscribeToWorkspaceEvents('session:closeOthers', (payload) => handleCloseOtherSessions(payload.targetSessionId));
   subscribeToWorkspaceEvents('session:closeToRight', (payload) => handleCloseSessionsToRight(payload.targetSessionId));
   subscribeToWorkspaceEvents('session:closeToLeft', (payload) => handleCloseSessionsToLeft(payload.targetSessionId));
@@ -214,6 +215,7 @@ onBeforeUnmount(() => {
 
   unsubscribeFromWorkspaceEvents('session:activate', (payload) => sessionStore.activateSession(payload.sessionId));
   unsubscribeFromWorkspaceEvents('session:close', (payload) => sessionStore.closeSession(payload.sessionId));
+  unsubscribeFromWorkspaceEvents('session:closeAll', handleCloseAllSessions);
   unsubscribeFromWorkspaceEvents('session:closeOthers', (payload) => handleCloseOtherSessions(payload.targetSessionId));
   unsubscribeFromWorkspaceEvents('session:closeToRight', (payload) => handleCloseSessionsToRight(payload.targetSessionId));
   unsubscribeFromWorkspaceEvents('session:closeToLeft', (payload) => handleCloseSessionsToLeft(payload.targetSessionId));
@@ -580,6 +582,14 @@ const toggleVirtualKeyboard = () => {
 // RDP 事件处理方法已被移除
 
  // --- 标签页关闭操作处理 ---
+
+ const handleCloseAllSessions = () => {
+   if (sessionTabsWithStatus.value.length === 0) {
+     return;
+   }
+
+   sessionStore.cleanupAllSessions();
+ };
 
  const handleCloseOtherSessions = (targetSessionId: string) => {
    const sessionsToClose = sessionTabsWithStatus.value

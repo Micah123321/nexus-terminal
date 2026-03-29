@@ -41,6 +41,7 @@ export type WorkspaceEventPayloads = {
   // Session Management Events (主要由 TerminalTabBar 发出)
   'session:activate': { sessionId: string };
   'session:close': { sessionId: string };
+  'session:closeAll': void;
   'session:closeOthers': { targetSessionId: string };
   'session:closeToRight': { targetSessionId: string };
   'session:closeToLeft': { targetSessionId: string };

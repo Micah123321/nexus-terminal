@@ -1628,7 +1628,9 @@
     "showTransferProgressTooltip": "Show/Hide Transfer Progress",
     "newTerminalTooltip": "Open another terminal for the current server",
     "openConnectionPickerTooltip": "Choose another server",
-    "terminalBadge": "Terminal {index}"
+    "terminalBadge": "Terminal {index}",
+    "serverEntryTitle": "{name} · {count} terminals",
+    "terminalCount": "{count} terminals"
   },
   "tabs": {
     "contextMenu": {
