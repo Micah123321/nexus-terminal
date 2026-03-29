@@ -7,6 +7,8 @@
 
 | 时间戳 | 名称 | 类型 | 涉及模块 | 决策 | 结果 |
 |--------|------|------|---------|------|------|
+| 202603300204 | global-server-quick-search | - | - | - | ✅完成 |
+| 202603300206 | workspace-workbench-top-tabs | implementation | frontend | workspace-workbench-top-tabs#D001 | ✅完成 |
 | 202603292139 | terminal-server-internal-tabs | - | - | - | ✅完成 |
 | 202603292247 | workbench-left-icon-rail | - | - | - | ✅完成 |
 | 202603292300 | terminal-tab-close-all | implementation | frontend | terminal-tab-close-all#D001 | ✅完成 |
@@ -43,6 +45,7 @@
 ## 按月归档
 
 ### 2026-03
+- [202603300206_workspace-workbench-top-tabs](./2026-03/202603300206_workspace-workbench-top-tabs/) - 将 Workbench 的导航从左侧竖排 icon rail 调整为 `Workbench` header 上方的横向纯图标栏
 - [202603292300_terminal-tab-close-all](./2026-03/202603292300_terminal-tab-close-all/) - 为终端标签右键菜单补充“关闭全部”，并复用现有工作区会话清理链路
 - [202603260527_file-manager-context-submenu-regression](./2026-03/202603260527_file-manager-context-submenu-regression/) - 修复文件管理器右键菜单回归关闭竞态，恢复终端、上传、压缩等子菜单展开与点击
 - [202603260324_file-manager-delete-upload-stability](./2026-03/202603260324_file-manager-delete-upload-stability/) - 修复文件管理器右键子菜单点击、拖拽上传目标确认、目录删除模式选择与删除后路径失效回退

@@ -9,12 +9,14 @@ import { useAppearanceStore } from './stores/appearance.store';
 import { useLayoutStore } from './stores/layout.store';
 import { useFocusSwitcherStore } from './stores/focusSwitcher.store';
 import { useSessionStore } from './stores/session.store';
+import { useConnectionsStore } from './stores/connections.store';
 import { useFavoritePathsStore } from './stores/favoritePaths.store';
 import { storeToRefs } from 'pinia';
 import UINotificationDisplay from './components/UINotificationDisplay.vue';
 import FileEditorOverlay from './components/FileEditorOverlay.vue';
 import StyleCustomizer from './components/StyleCustomizer.vue';
 import FocusSwitcherConfigurator from './components/FocusSwitcherConfigurator.vue';
+import GlobalConnectionQuickSearch from './components/GlobalConnectionQuickSearch.vue';
 import RemoteDesktopModal from './components/RemoteDesktopModal.vue';
 import VncModal from './components/VncModal.vue';
 import ConfirmDialog from './components/common/ConfirmDialog.vue';
@@ -27,10 +29,12 @@ const appearanceStore = useAppearanceStore();
 const layoutStore = useLayoutStore();
 const focusSwitcherStore = useFocusSwitcherStore(); // +++ 实例化焦点切换 Store +++
 const sessionStore = useSessionStore(); // +++ 实例化 Session Store +++
+const connectionsStore = useConnectionsStore();
 const dialogStore = useDialogStore(); // +++ 实例化 DialogStore +++
 const { state: dialogState } = storeToRefs(dialogStore); 
 const favoritePathsStore = useFavoritePathsStore(); // +++ 实例化 favoritePathsStore +++
 const { isAuthenticated } = storeToRefs(authStore);
+const { connections, isLoading: connectionsLoading } = storeToRefs(connectionsStore);
 const { showPopupFileEditorBoolean } = storeToRefs(settingsStore);
 const { isStyleCustomizerVisible } = storeToRefs(appearanceStore);
 const { isLayoutVisible, isHeaderVisible } = storeToRefs(layoutStore); // 添加 isHeaderVisible
@@ -46,6 +50,7 @@ const underlineRef = ref<HTMLElement | null>(null);
 const lastFocusedIdBySwitcher = ref<string | null>(null);
 const isAltPressed = ref(false); // 跟踪 Alt 键是否按下
 const altShortcutKey = ref<string | null>(null);
+const isGlobalConnectionSearchVisible = ref(false);
 // --- 移除 shortcutTriggeredInKeyDown 标志 ---
 
 const updateUnderline = async () => {
@@ -70,6 +75,7 @@ onMounted(() => {
   setTimeout(updateUnderline, 100);
 
   // +++ 全局 Alt 键监听器 +++
+  window.addEventListener('keydown', handleGlobalShortcutKeyDown);
   window.addEventListener('keydown', handleAltKeyDown); // +++ 监听 keydown 设置状态 +++
   window.addEventListener('keyup', handleGlobalKeyUp);   // +++ 监听 keyup 执行切换 +++
   
@@ -96,6 +102,7 @@ watch(isAuthenticated, (loggedIn) => {
 
 // +++ 卸载钩子以移除监听器 +++
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalShortcutKeyDown);
   window.removeEventListener('keydown', handleAltKeyDown); // +++ 移除 keydown 监听 +++
   window.removeEventListener('keyup', handleGlobalKeyUp);   // +++ 移除 keyup 监听 +++
 });
@@ -107,6 +114,12 @@ const isWorkspaceRoute = computed(() => route.path === '/workspace');
 watch(route, () => {
   updateUnderline();
 }, { immediate: true }); // *** 确保 immediate: true 存在 ***
+
+watch(isAuthenticated, (loggedIn) => {
+  if (!loggedIn) {
+    isGlobalConnectionSearchVisible.value = false;
+  }
+});
 
 
 const handleLogout = () => {
@@ -123,8 +136,43 @@ const closeStyleCustomizer = () => {
   appearanceStore.toggleStyleCustomizer(false);
 };
 
+const openGlobalConnectionSearch = () => {
+  if (!isAuthenticated.value) {
+    return;
+  }
+
+  isGlobalConnectionSearchVisible.value = true;
+  void connectionsStore.fetchConnections();
+};
+
+const closeGlobalConnectionSearch = () => {
+  isGlobalConnectionSearchVisible.value = false;
+};
+
+const handleGlobalConnectionSelect = (connection: (typeof connections.value)[number]) => {
+  closeGlobalConnectionSearch();
+  sessionStore.handleConnectRequest(connection);
+};
+
+const handleGlobalShortcutKeyDown = (event: KeyboardEvent) => {
+  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  if (!(event.ctrlKey && event.shiftKey && key === 'f')) {
+    return;
+  }
+
+  if (!isAuthenticated.value) {
+    return;
+  }
+
+  event.preventDefault();
+  if (!isGlobalConnectionSearchVisible.value) {
+    openGlobalConnectionSearch();
+  }
+};
+
 // +++ 处理 Alt 键按下的事件处理函数，并记录快捷键 +++
 const handleAltKeyDown = async (event: KeyboardEvent) => { // +++ 改为 async +++
+  if (isGlobalConnectionSearchVisible.value) return;
   if (!isWorkspaceRoute.value) return; // 只在 workspace 路由下执行
   // 只在 Alt 键首次按下时设置状态
   if (event.key === 'Alt' && !event.repeat) {
@@ -178,6 +226,7 @@ const handleAltKeyDown = async (event: KeyboardEvent) => { // +++ 改为 async +
 
 // +++ 全局键盘事件处理函数，监听 keyup，优先处理快捷键 +++
 const handleGlobalKeyUp = async (event: KeyboardEvent) => {
+  if (isGlobalConnectionSearchVisible.value) return;
   if (!isWorkspaceRoute.value) return; // 只在 workspace 路由下执行
   if (event.key === 'Alt') {
     const altWasPressed = isAltPressed.value;
@@ -362,6 +411,14 @@ const isElementVisibleAndFocusable = (element: HTMLElement): boolean => {
           @cancel="dialogStore.handleCancel"
           @update:visible="(val: boolean) => dialogStore.state.visible = val"
         />
+
+    <GlobalConnectionQuickSearch
+      v-if="isGlobalConnectionSearchVisible"
+      :connections="connections"
+      :is-loading="connectionsLoading"
+      @close="closeGlobalConnectionSearch"
+      @select="handleGlobalConnectionSelect"
+    />
 
   </div>
 </template>

@@ -1632,9 +1632,20 @@
     "serverEntryTitle": "{name} · {count} terminals",
     "terminalCount": "{count} terminals"
   },
+  "globalConnectionSearch": {
+    "shortcut": "Ctrl+Shift+F",
+    "title": "Global Server Search",
+    "placeholder": "Search by name, host, username, or type...",
+    "loading": "Loading connections...",
+    "emptyHint": "Type any keyword to fuzzy-search servers, or pick a recent connection directly.",
+    "noResults": "No servers matched “{query}”.",
+    "footerHint": "Quick connect for SSH / RDP / VNC",
+    "footerActions": "↑↓ Navigate · Enter Connect · Esc Close"
+  },
   "tabs": {
     "contextMenu": {
       "close": "Close Tab",
+      "closeAll": "Close All Tabs",
       "closeOthers": "Close Other Tabs",
       "closeRight": "Close Tabs to the Right",
       "closeLeft": "Close Tabs to the Left",

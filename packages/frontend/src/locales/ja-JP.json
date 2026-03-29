@@ -1590,6 +1590,16 @@
           "openConnectionPickerTooltip": "別のサーバーを選択",
           "terminalBadge": "端末 {index}"
       },
+      "globalConnectionSearch": {
+        "shortcut": "Ctrl+Shift+F",
+        "title": "グローバルサーバー検索",
+        "placeholder": "名前、ホスト、ユーザー名、種類で検索...",
+        "loading": "接続一覧を読み込み中...",
+        "emptyHint": "キーワードを入力してサーバーをあいまい検索するか、最近の接続を直接選択してください。",
+        "noResults": "「{query}」に一致するサーバーはありません。",
+        "footerHint": "SSH / RDP / VNC をすばやく接続",
+        "footerActions": "↑↓ 移動 · Enter 接続 · Esc 閉じる"
+      },
       "tabs": {
         "contextMenu": {
           "close": "タブを閉じる",

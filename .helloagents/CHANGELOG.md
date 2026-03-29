@@ -8,6 +8,8 @@
 - 2026-03-25：继续微调 `/workspace` Workbench，新增默认“快捷指令”标签、调整三栏宽度到更接近 xterminal 参考图，并修复终端区域鼠标悬停时指针异常消失的问题。
 
 ### 修复
+- **[frontend]**: 将 `/workspace` Workbench 的导航从左侧竖排 icon rail 调整为 `Workbench` header 上方的横向纯图标栏，保留原有四面板切换逻辑与信息头部层级 — by yinjianm
+  - 方案: [202603300206_workspace-workbench-top-tabs](archive/2026-03/202603300206_workspace-workbench-top-tabs/)
 - **[frontend]**: 将 `/workspace` 的 SSH 多终端展示从顶部组头胶囊改为“顶部只切服务器、终端面板内部切换同服务器多个终端”，修正服务器与终端的视觉层级 - by yinjianm
   - 方案: [202603292139_terminal-server-internal-tabs](archive/2026-03/202603292139_terminal-server-internal-tabs/)
 - **[frontend]**: 修复文件管理器右键菜单的回归关闭竞态，避免“终端 / 上传 / 压缩”子菜单在展开或点击前被捕获阶段监听提前关闭 - by yinjianm
@@ -59,6 +61,8 @@
   - 文件: packages/frontend/src/components/AddEditQuickCommandForm.vue:9,184-185,242-245
 
 ### 新增
+- **[frontend]**: 为已登录页面新增 `Ctrl+Shift+F` 全局服务器快捷检索面板，支持模糊搜索并直接复用既有 SSH / RDP / VNC 连接链路 — by yinjianm
+  - 方案: [202603300204_global-server-quick-search](archive/2026-03/202603300204_global-server-quick-search/)
 - **[frontend]**: 为文件管理器补齐“上传文件夹”入口，选择目录后会先在浏览器端打包为 zip，再上传并自动触发远端解压 — by yinjianm
   - 方案: [202603260234_folder-upload-auto-zip](archive/2026-03/202603260234_folder-upload-auto-zip/)
 - **[frontend]**: 为工作台文件面板补齐左侧多根目录资源管理器，支持收藏路径与当前路径同屏作为多个根目录展开浏览 — by yinjianm

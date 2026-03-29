@@ -243,6 +243,9 @@ const handleContextMenuAction = (payload: { action: string; targetId: string | n
     case 'close':
       emitWorkspaceEvent('session:close', { sessionId: targetId });
       break;
+    case 'close-all':
+      emitWorkspaceEvent('session:closeAll');
+      break;
     case 'close-others':
       emitWorkspaceEvent('session:closeOthers', { targetSessionId: targetId });
       break;
@@ -324,6 +327,7 @@ const contextMenuItems = computed(() => {
   items.push({ label: 'tabs.contextMenu.close', action: 'close' });
 
   if (totalTabs > 1) {
+    items.push({ label: 'tabs.contextMenu.closeAll', action: 'close-all' });
     items.push({ label: 'tabs.contextMenu.closeOthers', action: 'close-others' });
   }
 

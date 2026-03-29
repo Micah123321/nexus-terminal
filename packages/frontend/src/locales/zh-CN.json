@@ -1636,9 +1636,20 @@
     "serverEntryTitle": "{name} · {count} 个终端",
     "terminalCount": "{count} 个终端"
   },
+  "globalConnectionSearch": {
+    "shortcut": "Ctrl+Shift+F",
+    "title": "全局服务器检索",
+    "placeholder": "输入名称、主机、用户名或类型...",
+    "loading": "正在加载连接列表...",
+    "emptyHint": "输入任意关键词开始模糊检索服务器，或直接选择最近连接。",
+    "noResults": "没有找到与 “{query}” 匹配的服务器。",
+    "footerHint": "支持 SSH / RDP / VNC 全类型快速连接",
+    "footerActions": "↑↓ 切换 · Enter 连接 · Esc 关闭"
+  },
   "tabs": {
     "contextMenu": {
       "close": "关闭标签页",
+      "closeAll": "关闭全部标签页",
       "closeOthers": "关闭其他标签页",
       "closeRight": "关闭右侧标签页",
       "closeLeft": "关闭左侧标签页",
