@@ -473,7 +473,10 @@ const filteredAndSortedConnections = computed(() => {
         case 'name':
           leftValue = left.name || left.host;
           rightValue = right.name || right.host;
-          return String(leftValue).localeCompare(String(rightValue)) * sortOrderFactor;
+          return String(leftValue).localeCompare(String(rightValue), undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          }) * sortOrderFactor;
         case 'host':
           leftValue = left.host || '';
           rightValue = right.host || '';

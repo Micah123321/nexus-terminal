@@ -160,3 +160,4 @@ dist-scripts/
 electron-app/node_modules/
 electron-app/dist_electron/
 .ace-tool/
+.helloagents

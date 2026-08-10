@@ -137,6 +137,9 @@
   - 方案: [202603250614_terminal-ansi-color-effects](archive/2026-03/202603250614_terminal-ansi-color-effects/)
 
 ### 快速修改
+- **[frontend]**: 修复连接管理页按名称排序时数字片段按文本比较的问题，使日期类名称按自然数值顺序排列 — by hlm123
+  - 类型: 快速修改（无方案包）
+  - 文件: packages/frontend/src/views/ConnectionsView.vue:473-480
 - **[frontend]**: 修复关闭当前活动终端后的自动选中规则，改为切换到剩余终端列表中最前的终端，而不是最后的终端 — by yinjianm
   - 类型: 快速修改（无方案包）
   - 文件: packages/frontend/src/stores/session/actions/sessionActions.ts:335-340
