@@ -103,15 +103,23 @@ export class SftpService {
                     sftpInstance.on('end', () => {
                         console.log(`[SFTP] 会话 ${sessionId} 的 SFTP 会话已结束。`);
                         if (state) state.sftp = undefined;
+                        if (state?.ws.readyState === WebSocket.OPEN) {
+                            state.ws.send(JSON.stringify({ type: 'sftp_error', payload: { connectionId: state.dbConnectionId, message: 'SFTP 会话已结束' } }));
+                        }
                     });
                     sftpInstance.on('close', () => {
                         console.log(`[SFTP] 会话 ${sessionId} 的 SFTP 会话已关闭。`);
                          if (state) state.sftp = undefined;
+                        if (state?.ws.readyState === WebSocket.OPEN) {
+                            state.ws.send(JSON.stringify({ type: 'sftp_error', payload: { connectionId: state.dbConnectionId, message: 'SFTP 会话已关闭' } }));
+                        }
                     });
                     sftpInstance.on('error', (sftpErr: Error) => {
                          console.error(`[SFTP] 会话 ${sessionId} 的 SFTP 会话出错:`, sftpErr);
                          if (state) state.sftp = undefined;
-                         state?.ws.send(JSON.stringify({ type: 'sftp_error', payload: { connectionId: state.dbConnectionId, message: 'SFTP 会话错误' } }));
+                         if (state?.ws.readyState === WebSocket.OPEN) {
+                             state.ws.send(JSON.stringify({ type: 'sftp_error', payload: { connectionId: state.dbConnectionId, message: 'SFTP 会话错误' } }));
+                         }
                     });
                     resolve();
                 }
@@ -732,59 +740,9 @@ export class SftpService {
     }
 
     private async resolveRemoteHome(state: ClientState): Promise<string | null> {
-        const sftp = state.sftp as (SFTPWrapper & {
-            ext_home_dir?: (username: string, callback: (err: Error | null, home?: string) => void) => void;
-            ext_openssh_expandPath?: (path: string, callback: (err: Error | null, expanded?: string) => void) => void;
-        });
-
-        if (sftp?.ext_home_dir) {
-            try {
-                const home = await new Promise<string>((resolve, reject) => {
-                    try {
-                        sftp.ext_home_dir!('', (err, resolvedHome) => {
-                            if (err || !resolvedHome) {
-                                reject(err || new Error('Server did not return a home directory'));
-                            } else {
-                                resolve(resolvedHome);
-                            }
-                        });
-                    } catch (extensionError) {
-                        reject(extensionError);
-                    }
-                });
-
-                if (home) {
-                    return home;
-                }
-            } catch (homeError) {
-                console.warn(`[SFTP] home-directory extension unavailable:`, homeError);
-            }
-        }
-
-        if (sftp?.ext_openssh_expandPath) {
-            try {
-                const expanded = await new Promise<string>((resolve, reject) => {
-                    try {
-                        sftp.ext_openssh_expandPath!('~', (err, expandedPath) => {
-                            if (err || !expandedPath) {
-                                reject(err || new Error('Server did not expand ~'));
-                            } else {
-                                resolve(expandedPath);
-                            }
-                        });
-                    } catch (extensionError) {
-                        reject(extensionError);
-                    }
-                });
-
-                if (expanded && expanded !== '~') {
-                    return expanded;
-                }
-            } catch (expandError) {
-                console.warn(`[SFTP] expand-path extension unavailable:`, expandError);
-            }
-        }
-
+        // 不尝试 SFTP 扩展获取家目录：部分服务端会对 home-directory / expand-path
+        // 返回 Failure 并关闭 SFTP 通道，导致后续 readdir 全部报“SFTP 会话未就绪”。
+        // 对已经建立了 SSH Shell 的会话，直接通过 exec 解析登录目录更稳定。
         try {
             const home = await this.executeSshCommand(state.sshClient, 'cd && pwd');
             if (home) {

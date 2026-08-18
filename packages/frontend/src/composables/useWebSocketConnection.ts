@@ -270,6 +270,9 @@ export function createWebSocketConnectionManager(
                     } else if (message.type === 'sftp_ready') {
                         console.log(`[WebSocket ${instanceSessionId}] SFTP 会话已就绪。`);
                         isSftpReady.value = true;
+                    } else if (message.type === 'sftp_error') {
+                        console.warn(`[WebSocket ${instanceSessionId}] SFTP 会话不可用:`, message.payload);
+                        isSftpReady.value = false;
                     }
                     // --- 状态更新结束 ---
 
