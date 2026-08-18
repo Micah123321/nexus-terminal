@@ -2241,10 +2241,6 @@ watch(
     }
 
     expandExplorerPathChain(manager.currentPath.value);
-
-    if (!manager.fileTree.childrenLoaded || manager.currentPath.value !== '/') {
-      manager.loadDirectory('/');
-    }
   },
   { immediate: true },
 );

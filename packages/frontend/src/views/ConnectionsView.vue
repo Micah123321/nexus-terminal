@@ -319,7 +319,10 @@ const tagTreeNodes = computed<TagTreeNode[]>(() => {
 
   const buildNodes = (source: Map<string, DraftTreeNode>, level: number): TagTreeNode[] => {
     return Array.from(source.values())
-      .sort((left, right) => left.label.localeCompare(right.label))
+      .sort((left, right) => left.label.localeCompare(right.label, locale.value, {
+        numeric: true,
+        sensitivity: 'base',
+      }))
       .map((node) => {
         const children = buildNodes(node.children, level + 1);
         const count =

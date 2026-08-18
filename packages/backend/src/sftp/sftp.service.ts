@@ -703,6 +703,100 @@ export class SftpService {
     }
 
 
+    private executeSshCommand(sshClient: Client, command: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+            sshClient.exec(command, (err, stream) => {
+                if (err) {
+                    return reject(err);
+                }
+
+                let output = '';
+                stream.on('data', (data: Buffer) => {
+                    output += data.toString('utf8');
+                });
+                stream.stderr.on('data', () => {
+                    return;
+                });
+                stream.on('error', (error: Error) => {
+                    reject(error);
+                });
+                stream.on('close', (code: number | null, signal: string | null) => {
+                    if (code === 0 || code === null) {
+                        resolve(output.trim());
+                    } else {
+                        reject(new Error(`Command '${command}' exited with code ${code}${signal ? ` (signal ${signal})` : ''}`));
+                    }
+                });
+            });
+        });
+    }
+
+    private async resolveRemoteHome(state: ClientState): Promise<string | null> {
+        const sftp = state.sftp as (SFTPWrapper & {
+            ext_home_dir?: (username: string, callback: (err: Error | null, home?: string) => void) => void;
+            ext_openssh_expandPath?: (path: string, callback: (err: Error | null, expanded?: string) => void) => void;
+        });
+
+        if (sftp?.ext_home_dir) {
+            try {
+                const home = await new Promise<string>((resolve, reject) => {
+                    try {
+                        sftp.ext_home_dir!('', (err, resolvedHome) => {
+                            if (err || !resolvedHome) {
+                                reject(err || new Error('Server did not return a home directory'));
+                            } else {
+                                resolve(resolvedHome);
+                            }
+                        });
+                    } catch (extensionError) {
+                        reject(extensionError);
+                    }
+                });
+
+                if (home) {
+                    return home;
+                }
+            } catch (homeError) {
+                console.warn(`[SFTP] home-directory extension unavailable:`, homeError);
+            }
+        }
+
+        if (sftp?.ext_openssh_expandPath) {
+            try {
+                const expanded = await new Promise<string>((resolve, reject) => {
+                    try {
+                        sftp.ext_openssh_expandPath!('~', (err, expandedPath) => {
+                            if (err || !expandedPath) {
+                                reject(err || new Error('Server did not expand ~'));
+                            } else {
+                                resolve(expandedPath);
+                            }
+                        });
+                    } catch (extensionError) {
+                        reject(extensionError);
+                    }
+                });
+
+                if (expanded && expanded !== '~') {
+                    return expanded;
+                }
+            } catch (expandError) {
+                console.warn(`[SFTP] expand-path extension unavailable:`, expandError);
+            }
+        }
+
+        try {
+            const home = await this.executeSshCommand(state.sshClient, 'cd && pwd');
+            if (home) {
+                return home;
+            }
+        } catch (commandError) {
+            console.warn(`[SFTP] Failed to resolve home directory with shell command:`, commandError);
+        }
+
+        return null;
+    }
+
     /** 获取路径的绝对表示 */
     async realpath(sessionId: string, path: string, requestId: string): Promise<void> {
         const state = this.clientStates.get(sessionId);
@@ -712,8 +806,25 @@ export class SftpService {
             return;
         }
         console.debug(`[SFTP ${sessionId}] Received realpath request for ${path} (ID: ${requestId})`);
+
+        let pathToResolve = path;
+        if (path === '.' || path === '~' || path === '$HOME') {
+            const homePath = await this.resolveRemoteHome(state);
+            if (homePath) {
+                console.log(`[SFTP ${sessionId}] Resolved default realpath target for ${path} to ${homePath} (ID: ${requestId})`);
+                pathToResolve = homePath;
+            }
+        }
+
+        const activeState = this.clientStates.get(sessionId);
+        if (!activeState || !activeState.sftp) {
+            console.warn(`[SFTP ${sessionId}] SFTP session became invalid before realpath (ID: ${requestId}).`);
+            state.ws.send(JSON.stringify({ type: 'sftp:realpath:error', path: path, payload: 'SFTP 会话未就绪', requestId: requestId }));
+            return;
+        }
+
         try {
-            state.sftp.realpath(path, (err, absPath) => {
+            activeState.sftp.realpath(pathToResolve, (err, absPath) => {
                 if (err) {
                     console.error(`[SFTP ${sessionId}] realpath ${path} failed (ID: ${requestId}):`, err);
                     state.ws.send(JSON.stringify({ type: 'sftp:realpath:error', path: path, payload: { requestedPath: path, error: `获取绝对路径失败: ${err.message}` }, requestId: requestId }));
