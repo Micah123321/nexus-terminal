@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **[workspace-root]**: 为根 `docker-compose.yml` 固定项目名 `nexus-terminal`，并将更新文档改为先校验 compose 服务和镜像、再执行 `pull` 与 `up -d`，避免误在其他项目 compose 下操作容器 — by HelloAGENTS
+  - 类型: 快速修改（无方案包）
+  - 文件: docker-compose.yml, README.md, doc/README_EN.md
+
 - **[frontend]**: 优化新增连接脚本模式的大批量导入流程，改为受控并发创建连接、成功后只刷新一次连接列表，并对脚本标签按名称去重创建 — by HelloAGENTS
   - 方案: [202608290246_script-mode-batch-add-performance](plan/202608290246_script-mode-batch-add-performance/)
   - 决策: script-mode-batch-add-performance#D001(复用现有单条创建接口，在前端 store 增加受控并发批量动作)

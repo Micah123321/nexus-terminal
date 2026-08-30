@@ -1,3 +1,5 @@
+name: nexus-terminal
+
 services:
   frontend:
     image: ghcr.io/micah123321/nexus-terminal-frontend:latest
@@ -54,5 +56,5 @@ networks:
     enable_ipv6: true
     ipam:
       config:
-        - subnet: fd01::/80    
-          gateway: fd01::1    
+        - subnet: fd01::/80
+          gateway: fd01::1

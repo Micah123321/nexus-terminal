@@ -31,9 +31,9 @@
 **结果**: 三个子包共享锁文件与依赖树，补丁在安装阶段自动落地。
 
 ### 容器化部署
-**条件**: 使用根目录 `docker-compose.yml` 启动服务。  
-**行为**: `frontend` 暴露 `18111:80`，`backend` 读取根 `.env` 并挂载 `./data:/app/data`，`remote-gateway` 依赖 `guacd` 和 `backend`，三个业务镜像默认从 `ghcr.io/micah123321` 拉取。  
-**结果**: Web 入口、REST API、远程桌面网关与 `guacd` 形成完整运行拓扑。
+**条件**: 使用根目录 `docker-compose.yml` 启动服务。
+**行为**: compose 顶层固定 `name: nexus-terminal`，`frontend` 暴露 `18111:80`，`backend` 读取根 `.env` 并挂载 `./data:/app/data`，`remote-gateway` 依赖 `guacd` 和 `backend`，三个业务镜像默认从 `ghcr.io/micah123321` 拉取。部署更新前应先执行 `docker compose config --services` 与 `docker compose config --images`，确认服务为 `frontend/backend/remote-gateway/guacd` 且镜像为 `nexus-terminal-*` 后再 `pull` 和 `up -d`。
+**结果**: Web 入口、REST API、远程桌面网关与 `guacd` 形成完整运行拓扑，并降低在错误目录或其他项目 compose 下误操作容器的风险。
 
 ### 镜像自动发布
 **条件**: 向 `main` 分支推送代码，或在 GitHub Actions 手动触发 workflow。  

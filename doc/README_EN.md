@@ -141,14 +141,14 @@ docker compose up -d
 ```
 
 ### 3️⃣ Update
-Note: Running with docker-compose does not require pulling the source code unless you plan to build it yourself. Simply execute the following commands in the project directory to update.
+Note: Running with docker-compose does not require pulling the source code unless you plan to build it yourself. Before updating, confirm that the compose file in the current directory belongs to Nexus Terminal so you do not operate on another project by mistake.
 ```bash
-docker compose down
+docker compose config --services
+docker compose config --images
 ```
+After confirming that the services include `frontend`, `backend`, `remote-gateway`, and `guacd`, and the images are `nexus-terminal-*`, run:
 ```bash
 docker compose pull
-```
-```bash
 docker compose up -d
 ```
 ## 📚 Usage Guide

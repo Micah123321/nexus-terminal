@@ -140,14 +140,14 @@ docker compose up -d
 ```
 
 ### 3️⃣ 更新
-注意：docker-compose 运行不需要拉取仓库源码，除非你打算自己build，否则只需要在项目目录执行以下命令即可更新。
+注意：docker-compose 运行不需要拉取仓库源码，除非你打算自己 build。更新前请先确认当前目录的 compose 文件属于 Nexus Terminal，避免误操作其他项目。
 ```bash
-docker compose down
+docker compose config --services
+docker compose config --images
 ```
+确认服务包含 `frontend`、`backend`、`remote-gateway`、`guacd`，镜像为 `nexus-terminal-*` 后再执行：
 ```bash
 docker compose pull
-```
-```bash
 docker compose up -d
 ```
 ## 📚 使用指南
