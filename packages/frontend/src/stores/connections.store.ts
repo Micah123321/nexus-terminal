@@ -30,6 +30,51 @@ interface ConnectionsState {
     error: string | null;
 }
 
+const CONNECTIONS_CACHE_KEY = 'connectionsCache';
+const DEFAULT_BATCH_ADD_CONCURRENCY = 6;
+
+export interface NewConnectionData {
+    name: string;
+    type: 'SSH' | 'RDP' | 'VNC';
+    host: string;
+    port: number;
+    username: string;
+    auth_method?: 'password' | 'key';
+    login_credential_id?: number | null;
+    password?: string;
+    private_key?: string;
+    passphrase?: string;
+    vncPassword?: string;
+    proxy_id?: number | null;
+    proxy_type?: 'proxy' | 'jump' | null;
+    tag_ids?: number[];
+    jump_chain?: number[] | null;
+}
+
+export interface BatchAddConnectionResult {
+    index: number;
+    name: string;
+    success: boolean;
+    connection?: ConnectionInfo;
+    error?: string;
+}
+
+export interface BatchAddConnectionsSummary {
+    successCount: number;
+    errorCount: number;
+    firstError: string | null;
+    results: BatchAddConnectionResult[];
+}
+
+const extractConnectionError = (err: any, fallback: string): string => {
+    return err.response?.data?.message || err.message || fallback;
+};
+
+const createConnectionRequest = async (newConnectionData: NewConnectionData): Promise<ConnectionInfo> => {
+    const response = await apiClient.post<{ message: string; connection: ConnectionInfo }>('/connections', newConnectionData);
+    return response.data.connection;
+};
+
 // 定义 Pinia Store
 export const useConnectionsStore = defineStore('connections', {
     state: (): ConnectionsState => ({
@@ -88,41 +133,73 @@ export const useConnectionsStore = defineStore('connections', {
         },
 
         // 添加新连接 Action (添加后应清除缓存或重新获取)
-        // 更新参数类型以接受新的认证字段
-        async addConnection(newConnectionData: {
-            name: string;
-            type: 'SSH' | 'RDP' | 'VNC'; // Use uppercase
-            host: string;
-            port: number;
-            username: string;
-            auth_method: 'password' | 'key'; // SSH specific
-            login_credential_id?: number | null;
-            password?: string; // SSH password or general password
-            private_key?: string; // SSH specific
-            passphrase?: string; // SSH specific
-            vncPassword?: string; // VNC specific password
-            proxy_id?: number | null;
-            proxy_type?: 'proxy' | 'jump' | null; 
-            tag_ids?: number[]; // 允许传入 tag_ids
-            jump_chain?: number[] | null;
-        }) {
+        async addConnection(newConnectionData: NewConnectionData) {
             this.isLoading = true;
             this.error = null;
             try {
-                const response = await apiClient.post<{ message: string; connection: ConnectionInfo }>('/connections', newConnectionData); // 使用 apiClient
-                // 添加成功后，清除缓存以便下次获取最新数据
-                localStorage.removeItem('connectionsCache');
-                // 可以选择重新获取整个列表，或者仅在本地添加
-                // this.connections.unshift(response.data.connection); // 本地添加可能导致与缓存不一致，建议重新获取
-                await this.fetchConnections(); // 推荐重新获取以保证数据一致性
-                return true; // 表示成功
+                await createConnectionRequest(newConnectionData);
+                localStorage.removeItem(CONNECTIONS_CACHE_KEY);
+                await this.fetchConnections();
+                return true;
             } catch (err: any) {
                 console.error('添加连接失败:', err);
-                this.error = err.response?.data?.message || err.message || '添加连接时发生未知错误。';
+                this.error = extractConnectionError(err, '添加连接时发生未知错误。');
                  if (err.response?.status === 401) {
                     console.warn('未授权，需要登录才能添加连接。');
                 }
-                return false; // 表示失败
+                return false;
+            } finally {
+                this.isLoading = false;
+            }
+        },
+
+        async addConnectionsBatch(newConnectionsData: NewConnectionData[], concurrency = DEFAULT_BATCH_ADD_CONCURRENCY): Promise<BatchAddConnectionsSummary> {
+            if (newConnectionsData.length === 0) {
+                return { successCount: 0, errorCount: 0, firstError: null, results: [] };
+            }
+
+            this.isLoading = true;
+            this.error = null;
+            const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), newConnectionsData.length);
+            const results: BatchAddConnectionResult[] = new Array(newConnectionsData.length);
+            let cursor = 0;
+
+            const runNext = async () => {
+                while (cursor < newConnectionsData.length) {
+                    const index = cursor;
+                    cursor += 1;
+                    const item = newConnectionsData[index];
+
+                    try {
+                        const connection = await createConnectionRequest(item);
+                        results[index] = { index, name: item.name, success: true, connection };
+                    } catch (err: any) {
+                        const error = extractConnectionError(err, '添加连接时发生未知错误。');
+                        console.error(`批量添加连接失败: ${item.name}`, err);
+                        if (err.response?.status === 401) {
+                            console.warn('未授权，需要登录才能添加连接。');
+                        }
+                        results[index] = { index, name: item.name, success: false, error };
+                    }
+                }
+            };
+
+            try {
+                await Promise.all(Array.from({ length: workerCount }, () => runNext()));
+                const completedResults = results.filter((result): result is BatchAddConnectionResult => Boolean(result));
+                const successCount = completedResults.filter((result) => result.success).length;
+                const failedResults = completedResults.filter((result) => !result.success);
+                const firstError = failedResults[0]?.error ?? null;
+
+                if (successCount > 0) {
+                    localStorage.removeItem(CONNECTIONS_CACHE_KEY);
+                    await this.fetchConnections();
+                }
+                if (firstError) {
+                    this.error = firstError;
+                }
+
+                return { successCount, errorCount: failedResults.length, firstError, results: completedResults };
             } finally {
                 this.isLoading = false;
             }

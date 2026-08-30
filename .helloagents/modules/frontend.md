@@ -70,6 +70,11 @@
 **行为**: 前端新增 `loginCredentials.store.ts`、`LoginCredentialSelector.vue` 和 `LoginCredentialManagementModal.vue`，在 `ConnectionsView.vue` 顶部增加“登录凭证”入口；`AddConnectionFormAuth.vue` 当前把认证区拆成“直填账号密码 / 密钥”和“使用已保存凭证”两种来源，`useAddConnectionForm.ts` 在保存和测试连接时会根据 `credential_source` 自动决定提交 `login_credential_id` 还是直填字段；`AddConnectionFormAuth.vue` 与 `LoginCredentialManagementModal.vue` 现在还会为直填密码输入提供眼睛显隐切换，默认仍保持掩码，仅在本地输入框显示层切换明文，方便用户核对输入内容；`BatchEditConnectionForm.vue` 也补充了批量应用已保存凭证的能力，并限制为同一种连接类型批量使用；`ConnectionsView.vue` 的批量工具条新增 `BatchCredentialShortcutModal.vue` 快捷入口，选中或全选连接后可直接选择同类型已保存凭证并批量写入 `login_credential_id`，也可清空已保存凭证。
 **结果**: 用户既可以继续沿用原来的直填方式，也可以把常用账号沉淀成独立凭证并在连接或批量编辑时快速套用，同时在录入密码时可即时核对输入是否正确，而不会改变默认安全策略或后端返回行为。
 
+### 连接脚本模式批量添加
+**条件**: 用户在新增连接弹窗启用脚本模式并粘贴多行连接脚本。
+**行为**: `useAddConnectionForm.ts` 会先统一解析连接、标签、SSH 密钥和代理依赖；缺失标签按名称去重创建，随后调用 `connections.store.ts#addConnectionsBatch` 以默认 6 路受控并发提交现有 `/api/v1/connections` 创建接口，并在有成功项时只执行一次 `fetchConnections()` 刷新缓存。
+**结果**: 大批量脚本新增连接不再被逐条 `addConnection()` + 逐条全量刷新拖慢，同时仍保留每条创建结果统计和首个错误提示。
+
 ## 依赖关系
 
 ```yaml

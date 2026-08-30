@@ -515,64 +515,81 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
 
     const fullyProcessedConnections = [];
     let resolutionErrorOccurred = false;
+    const tagIdByName = new Map(tags.value.map((tag) => [tag.name, tag.id]));
+    const sshKeyIdByName = new Map(sshKeys.value.map((key) => [key.name, key.id]));
+    const proxyIdByName = new Map(proxies.value.map((proxy) => [proxy.name, proxy.id]));
+    const missingTagNames = Array.from(new Set(
+      connectionsToAdd.flatMap((connData) => connData.tag_names || [])
+    )).filter((tagName) => !tagIdByName.has(tagName));
+    let createdTagsCount = 0;
 
-    for (const connData of connectionsToAdd) {
-      if (connData.tag_names && connData.tag_names.length > 0) {
-        const tagIds = [];
-        for (const tagName of connData.tag_names) {
-          let foundTag = tags.value.find(t_ => t_.name === tagName); // Renamed t to t_ to avoid conflict
-          if (!foundTag) {
-            // 自动创建不存在的标签
-            const newTag = await tagsStore.addTag(tagName);
-            if (newTag) {
-              foundTag = newTag;
-              uiNotificationsStore.showInfo(t('connections.form.scriptTagCreated', { tagName }));
-              // 确保标签列表已更新
-              await tagsStore.fetchTags();
-            } else {
+    for (const tagName of missingTagNames) {
+      const newTag = await tagsStore.addTag(tagName, { refresh: false });
+      if (newTag) {
+        tagIdByName.set(newTag.name, newTag.id);
+        createdTagsCount++;
+        uiNotificationsStore.showInfo(t('connections.form.scriptTagCreated', { tagName }));
+      } else {
+        uiNotificationsStore.showError(t('connections.form.scriptErrorTagCreationFailed', { tagName }));
+        resolutionErrorOccurred = true;
+        break;
+      }
+    }
+
+    if (createdTagsCount > 0) {
+      await tagsStore.fetchTags();
+    }
+
+    if (!resolutionErrorOccurred) {
+      for (const connData of connectionsToAdd) {
+        if (connData.tag_names && connData.tag_names.length > 0) {
+          const tagIds: number[] = [];
+          for (const tagName of connData.tag_names) {
+            const tagId = tagIdByName.get(tagName);
+            if (tagId === undefined) {
               uiNotificationsStore.showError(t('connections.form.scriptErrorTagCreationFailed', { tagName }));
               resolutionErrorOccurred = true;
               break;
             }
+            tagIds.push(tagId);
           }
-          tagIds.push(foundTag.id);
-        }
-        if (resolutionErrorOccurred) break;
-        connData.tag_ids = tagIds;
-      } else {
-        connData.tag_ids = [];
-      }
-      delete connData.tag_names;
-
-      if (connData.type === 'SSH' && connData.auth_method === 'key' && connData.ssh_key_name) {
-        const foundKey = sshKeys.value.find(k => k.name === connData.ssh_key_name);
-        if (foundKey) {
-          connData.ssh_key_id = foundKey.id;
+          if (resolutionErrorOccurred) break;
+          connData.tag_ids = tagIds;
         } else {
-          uiNotificationsStore.showError(t('connections.form.scriptErrorSshKeyNotFound', { keyName: connData.ssh_key_name }));
-          resolutionErrorOccurred = true;
-          break;
+          connData.tag_ids = [];
         }
-        delete connData.ssh_key_name;
+        delete connData.tag_names;
+
+        if (connData.type === 'SSH' && connData.auth_method === 'key' && connData.ssh_key_name) {
+          const sshKeyId = sshKeyIdByName.get(connData.ssh_key_name);
+          if (sshKeyId !== undefined) {
+            connData.ssh_key_id = sshKeyId;
+          } else {
+            uiNotificationsStore.showError(t('connections.form.scriptErrorSshKeyNotFound', { keyName: connData.ssh_key_name }));
+            resolutionErrorOccurred = true;
+            break;
+          }
+          delete connData.ssh_key_name;
+        }
+
+        if (connData.proxy_name) {
+          const proxyId = proxyIdByName.get(connData.proxy_name);
+          if (proxyId !== undefined) {
+            connData.proxy_id = proxyId;
+          } else {
+            uiNotificationsStore.showError(t('proxies.errors.notFound', { name: connData.proxy_name })); // Assuming you add this translation
+            resolutionErrorOccurred = true;
+            break;
+          }
+          delete connData.proxy_name;
+        }
+
+        if (connData.type !== 'SSH' || connData.auth_method !== 'key') delete connData.ssh_key_id;
+        if (connData.type === 'SSH' && connData.auth_method === 'key') delete connData.password;
+        if (connData.type !== 'SSH') delete connData.auth_method;
+
+        fullyProcessedConnections.push(connData);
       }
-      
-      if (connData.proxy_name) {
-       const foundProxy = proxies.value.find(p => p.name === connData.proxy_name);
-       if (foundProxy) {
-         connData.proxy_id = foundProxy.id;
-       } else {
-         uiNotificationsStore.showError(t('proxies.errors.notFound', { name: connData.proxy_name })); // Assuming you add this translation
-         resolutionErrorOccurred = true;
-         break;
-       }
-       delete connData.proxy_name;
-     }
-
-      if (connData.type !== 'SSH' || connData.auth_method !== 'key') delete connData.ssh_key_id;
-      if (connData.type === 'SSH' && connData.auth_method === 'key') delete connData.password;
-      if (connData.type !== 'SSH') delete connData.auth_method;
-
-      fullyProcessedConnections.push(connData);
     }
 
     if (resolutionErrorOccurred || (fullyProcessedConnections.length === 0 && lines.length > 0)) {
@@ -588,20 +605,14 @@ export function useAddConnectionForm(props: AddConnectionFormProps, emit: AddCon
 
     uiNotificationsStore.showInfo(t('connections.form.scriptModeAddingConnections', { count: fullyProcessedConnections.length }));
 
-    let successCount = 0;
-    let errorCount = 0;
-    let firstErrorEncountered: string | null = null;
+    const batchResult = await connectionsStore.addConnectionsBatch(fullyProcessedConnections);
+    const successCount = batchResult.successCount;
+    const errorCount = batchResult.errorCount;
+    const firstErrorEncountered = batchResult.firstError;
 
-    for (const finalConnectionData of fullyProcessedConnections) {
-      const success = await connectionsStore.addConnection(finalConnectionData);
-      if (success) {
-        successCount++;
-      } else {
-        errorCount++;
-        if (!firstErrorEncountered) {
-          firstErrorEncountered = connectionsStore.error || t('errors.unknown', '未知错误');
-        }
-        console.error(`Failed to add connection: ${finalConnectionData.name}`, connectionsStore.error);
+    for (const result of batchResult.results) {
+      if (!result.success) {
+        console.error(`Failed to add connection: ${result.name}`, result.error);
       }
     }
 

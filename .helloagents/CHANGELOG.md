@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **[frontend]**: 优化新增连接脚本模式的大批量导入流程，改为受控并发创建连接、成功后只刷新一次连接列表，并对脚本标签按名称去重创建 — by HelloAGENTS
+  - 方案: [202608290246_script-mode-batch-add-performance](plan/202608290246_script-mode-batch-add-performance/)
+  - 决策: script-mode-batch-add-performance#D001(复用现有单条创建接口，在前端 store 增加受控并发批量动作)
+
 - **[frontend]**: 将共享 WebSocket 连接失败后的自动重连限制为最多 3 次，并在工作区显示重连状态、尝试次数和等待时间 — by yinjianm
   - 方案: [202605131759_websocket-reconnect-limit-and-status](archive/2026-05/202605131759_websocket-reconnect-limit-and-status/)
   - 决策: websocket-reconnect-limit-and-status#D001(在共享 WebSocket 管理器中统一限制重连并暴露状态)

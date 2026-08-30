@@ -20,6 +20,12 @@ export interface TagBatchDeleteSummary {
     delete_connections: boolean;
 }
 
+const TAGS_CACHE_KEY = 'tagsCache';
+
+interface AddTagOptions {
+    refresh?: boolean;
+}
+
 export const useTagsStore = defineStore('tags', () => {
     const tags = ref<TagInfo[]>([]);
     const isLoading = ref(false);
@@ -83,15 +89,28 @@ export const useTagsStore = defineStore('tags', () => {
     }
 
     // 添加新标签 (添加后清除缓存)
-    async function addTag(name: string): Promise<TagInfo | null> { // 修改返回类型
+    async function addTag(name: string, options: AddTagOptions = {}): Promise<TagInfo | null> { // 修改返回类型
         isLoading.value = true;
         error.value = null;
         try {
             const response = await apiClient.post<{ message: string, tag: TagInfo }>('/tags', { name }); // 假设后端返回新标签信息
             const newTag = response.data.tag;
-            // 添加成功后，清除缓存并重新获取 (fetchTags 会更新本地列表)
-            localStorage.removeItem('tagsCache');
-            await fetchTags(); // fetchTags 会处理获取和缓存更新
+            localStorage.removeItem(TAGS_CACHE_KEY);
+            if (options.refresh === false) {
+                const existingIndex = tags.value.findIndex((tag) => tag.id === newTag.id);
+                if (existingIndex >= 0) {
+                    tags.value[existingIndex] = newTag;
+                } else {
+                    tags.value = [...tags.value, newTag];
+                }
+                try {
+                    localStorage.setItem(TAGS_CACHE_KEY, JSON.stringify(tags.value));
+                } catch (cacheError) {
+                    console.error('[TagsStore] Failed to update tags cache:', cacheError);
+                }
+            } else {
+                await fetchTags(); // fetchTags 会处理获取和缓存更新
+            }
             return newTag; // 返回新标签信息
         } catch (err: any) {
             console.error('Failed to add tag:', err);
