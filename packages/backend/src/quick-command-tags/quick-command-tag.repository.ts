@@ -1,4 +1,5 @@
 import { getDbInstance, runDb, getDb as getDbRow, allDb } from '../database/connection';
+import { runSerializedTransaction } from '../database/transaction';
 
 export interface QuickCommandTag {
     id: number;
@@ -118,19 +119,17 @@ export const reorderQuickCommandTags = async (tagIds: number[]): Promise<void> =
         return;
     }
 
-    const db = await getDbInstance();
     try {
-        await runDb(db, 'BEGIN TRANSACTION');
-        for (let index = 0; index < normalizedTagIds.length; index += 1) {
-            await runDb(
-                db,
-                'UPDATE quick_command_tags SET sort_order = ?, updated_at = strftime(\'%s\', \'now\') WHERE id = ?',
-                [index + 1, normalizedTagIds[index]],
-            );
-        }
-        await runDb(db, 'COMMIT');
+        await runSerializedTransaction(async (db) => {
+            for (let index = 0; index < normalizedTagIds.length; index += 1) {
+                await runDb(
+                    db,
+                    'UPDATE quick_command_tags SET sort_order = ?, updated_at = strftime(\'%s\', \'now\') WHERE id = ?',
+                    [index + 1, normalizedTagIds[index]],
+                );
+            }
+        });
     } catch (err: any) {
-        await runDb(db, 'ROLLBACK');
         console.error('[QuickCommandTagRepository] 重排快捷指令标签失败:', err.message);
         throw new Error('无法更新快捷指令标签顺序');
     }
@@ -138,45 +137,41 @@ export const reorderQuickCommandTags = async (tagIds: number[]): Promise<void> =
 
 export const setCommandTagAssociations = async (commandId: number, tagIds: number[]): Promise<void> => {
     const normalizedTagIds = Array.from(new Set(tagIds.filter((tagId) => Number.isInteger(tagId) && tagId > 0)));
-    const db = await getDbInstance();
 
     try {
-        const existingAssociations = await allDb<CommandTagAssociationRow>(
-            db,
-            'SELECT tag_id, sort_order FROM quick_command_tag_associations WHERE quick_command_id = ?',
-            [commandId],
-        );
-        const existingTagIds = new Set(existingAssociations.map((association) => association.tag_id));
-
-        await runDb(db, 'BEGIN TRANSACTION');
-
-        if (normalizedTagIds.length === 0) {
-            await runDb(db, 'DELETE FROM quick_command_tag_associations WHERE quick_command_id = ?', [commandId]);
-        } else {
-            const placeholders = normalizedTagIds.map(() => '?').join(', ');
-            await runDb(
+        await runSerializedTransaction(async (db) => {
+            const existingAssociations = await allDb<CommandTagAssociationRow>(
                 db,
-                `DELETE FROM quick_command_tag_associations WHERE quick_command_id = ? AND tag_id NOT IN (${placeholders})`,
-                [commandId, ...normalizedTagIds],
+                'SELECT tag_id, sort_order FROM quick_command_tag_associations WHERE quick_command_id = ?',
+                [commandId],
             );
+            const existingTagIds = new Set(existingAssociations.map((association) => association.tag_id));
 
-            for (const tagId of normalizedTagIds) {
-                if (existingTagIds.has(tagId)) {
-                    continue;
-                }
-
-                const nextSortOrder = await getNextAssociationSortOrder(db, tagId);
+            if (normalizedTagIds.length === 0) {
+                await runDb(db, 'DELETE FROM quick_command_tag_associations WHERE quick_command_id = ?', [commandId]);
+            } else {
+                const placeholders = normalizedTagIds.map(() => '?').join(', ');
                 await runDb(
                     db,
-                    'INSERT INTO quick_command_tag_associations (quick_command_id, tag_id, sort_order) VALUES (?, ?, ?)',
-                    [commandId, tagId, nextSortOrder],
+                    `DELETE FROM quick_command_tag_associations WHERE quick_command_id = ? AND tag_id NOT IN (${placeholders})`,
+                    [commandId, ...normalizedTagIds],
                 );
-            }
-        }
 
-        await runDb(db, 'COMMIT');
+                for (const tagId of normalizedTagIds) {
+                    if (existingTagIds.has(tagId)) {
+                        continue;
+                    }
+
+                    const nextSortOrder = await getNextAssociationSortOrder(db, tagId);
+                    await runDb(
+                        db,
+                        'INSERT INTO quick_command_tag_associations (quick_command_id, tag_id, sort_order) VALUES (?, ?, ?)',
+                        [commandId, tagId, nextSortOrder],
+                    );
+                }
+            }
+        });
     } catch (err: any) {
-        await runDb(db, 'ROLLBACK');
         console.error('[QuickCommandTagRepository] 设置快捷指令标签关联失败:', err.message);
         throw new Error('无法设置快捷指令标签关联');
     }
@@ -191,32 +186,28 @@ export const addTagToCommands = async (commandIds: number[], tagId: number): Pro
         return;
     }
 
-    const db = await getDbInstance();
-
     try {
-        await runDb(db, 'BEGIN TRANSACTION');
-        for (const commandId of normalizedCommandIds) {
-            const existingAssociation = await getDbRow<{ quick_command_id: number }>(
-                db,
-                'SELECT quick_command_id FROM quick_command_tag_associations WHERE quick_command_id = ? AND tag_id = ?',
-                [commandId, tagId],
-            );
+        await runSerializedTransaction(async (db) => {
+            for (const commandId of normalizedCommandIds) {
+                const existingAssociation = await getDbRow<{ quick_command_id: number }>(
+                    db,
+                    'SELECT quick_command_id FROM quick_command_tag_associations WHERE quick_command_id = ? AND tag_id = ?',
+                    [commandId, tagId],
+                );
 
-            if (existingAssociation) {
-                continue;
+                if (existingAssociation) {
+                    continue;
+                }
+
+                const nextSortOrder = await getNextAssociationSortOrder(db, tagId);
+                await runDb(
+                    db,
+                    'INSERT INTO quick_command_tag_associations (quick_command_id, tag_id, sort_order) VALUES (?, ?, ?)',
+                    [commandId, tagId, nextSortOrder],
+                );
             }
-
-            const nextSortOrder = await getNextAssociationSortOrder(db, tagId);
-            await runDb(
-                db,
-                'INSERT INTO quick_command_tag_associations (quick_command_id, tag_id, sort_order) VALUES (?, ?, ?)',
-                [commandId, tagId, nextSortOrder],
-            );
-        }
-
-        await runDb(db, 'COMMIT');
+        });
     } catch (err: any) {
-        await runDb(db, 'ROLLBACK');
         console.error(`[QuickCommandTagRepository] 批量关联标签 ${tagId} 失败:`, err.message);
         throw new Error('无法批量关联标签到快捷指令');
     }
@@ -231,20 +222,17 @@ export const reorderCommandsInTag = async (tagId: number, commandIds: number[]):
         return;
     }
 
-    const db = await getDbInstance();
-
     try {
-        await runDb(db, 'BEGIN TRANSACTION');
-        for (let index = 0; index < normalizedCommandIds.length; index += 1) {
-            await runDb(
-                db,
-                'UPDATE quick_command_tag_associations SET sort_order = ? WHERE tag_id = ? AND quick_command_id = ?',
-                [index + 1, tagId, normalizedCommandIds[index]],
-            );
-        }
-        await runDb(db, 'COMMIT');
+        await runSerializedTransaction(async (db) => {
+            for (let index = 0; index < normalizedCommandIds.length; index += 1) {
+                await runDb(
+                    db,
+                    'UPDATE quick_command_tag_associations SET sort_order = ? WHERE tag_id = ? AND quick_command_id = ?',
+                    [index + 1, tagId, normalizedCommandIds[index]],
+                );
+            }
+        });
     } catch (err: any) {
-        await runDb(db, 'ROLLBACK');
         console.error(`[QuickCommandTagRepository] 重排标签 ${tagId} 内命令失败:`, err.message);
         throw new Error('无法更新标签内快捷指令顺序');
     }

@@ -1,4 +1,5 @@
 import { getDbInstance, runDb, getDb as getDbRow, allDb } from '../database/connection';
+import { runSerializedTransaction } from '../database/transaction';
 
 export interface QuickCommand {
     id: number;
@@ -228,19 +229,17 @@ export const reorderQuickCommands = async (commandIds: number[]): Promise<void> 
         return;
     }
 
-    const db = await getDbInstance();
     try {
-        await runDb(db, 'BEGIN TRANSACTION');
-        for (let index = 0; index < normalizedCommandIds.length; index += 1) {
-            await runDb(
-                db,
-                'UPDATE quick_commands SET sort_order = ?, updated_at = strftime(\'%s\', \'now\') WHERE id = ?',
-                [index + 1, normalizedCommandIds[index]],
-            );
-        }
-        await runDb(db, 'COMMIT');
+        await runSerializedTransaction(async (db) => {
+            for (let index = 0; index < normalizedCommandIds.length; index += 1) {
+                await runDb(
+                    db,
+                    'UPDATE quick_commands SET sort_order = ?, updated_at = strftime(\'%s\', \'now\') WHERE id = ?',
+                    [index + 1, normalizedCommandIds[index]],
+                );
+            }
+        });
     } catch (err: any) {
-        await runDb(db, 'ROLLBACK');
         console.error('[QuickCommandsRepository] 重排快捷指令失败:', err.message);
         throw new Error('无法更新快捷指令顺序');
     }

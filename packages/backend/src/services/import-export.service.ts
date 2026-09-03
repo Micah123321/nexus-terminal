@@ -3,7 +3,8 @@ import * as ConnectionRepository from '../connections/connection.repository';
 import * as ProxyRepository from '../proxies/proxy.repository';
 import * as TagService from '../tags/tag.service'; 
 import { getDbInstance, runDb, getDb as getDbRow, allDb } from '../database/connection';
-import { decrypt, getEncryptionKeyBuffer as getCryptoKeyBuffer } from '../utils/crypto'; 
+import { decrypt, getEncryptionKeyBuffer as getCryptoKeyBuffer } from '../utils/crypto';
+import { runSerializedTransaction } from '../database/transaction';
 import { getAllDecryptedSshKeys, DecryptedSshKeyDetails } from '../ssh_keys/ssh_key.service'; 
 import archiver from 'archiver';
 archiver.registerFormat('zip-encrypted', require("archiver-zip-encrypted"));
@@ -374,80 +375,78 @@ export const importConnections = async (fileBuffer: Buffer): Promise<ImportResul
     let successCount = 0;
     let failureCount = 0;
     const errors: { connectionName?: string; message: string }[] = [];
-    const db = await getDbInstance();
 
     try {
-        await runDb(db, 'BEGIN TRANSACTION');
-
-        const connectionsToInsert: Array<Omit<ConnectionRepository.FullConnectionData, 'id' | 'created_at' | 'updated_at' | 'last_connected_at'> & { tag_ids?: number[] }> = [];
-        const proxyCache: { [key: string]: number } = {}; 
-
-
-        for (const connData of importedData) {
-             try {
-
-                // Validate imported data, including type
-                if (!connData.type || !['SSH', 'RDP', 'VNC'].includes(connData.type)) {
-                    throw new Error('缺少或无效的连接类型 (type)。');
-                }
-                if (!connData.name || !connData.host || !connData.port || !connData.username) {
-                    throw new Error('缺少必要的连接字段 (name, host, port, username)。');
-                }
-                // Validate SSH specific fields only if type is SSH
-                if (connData.type === 'SSH' && (!connData.auth_method || !['password', 'key'].includes(connData.auth_method))) {
-                     throw new Error('SSH 连接缺少有效的认证方式 (auth_method)。');
-                }
-                // RDP specific validation (e.g., password required) could be added here if needed
+        return await runSerializedTransaction(async (db) => {
+            const connectionsToInsert: Array<Omit<ConnectionRepository.FullConnectionData, 'id' | 'created_at' | 'updated_at' | 'last_connected_at'> & { tag_ids?: number[] }> = [];
+            const proxyCache: { [key: string]: number } = {};
 
 
-                let proxyIdToUse: number | null = null;
+            for (const connData of importedData) {
+                 try {
 
-                if (connData.proxy) {
-                    const proxyData = connData.proxy;
-                    if (!proxyData.name || !proxyData.type || !proxyData.host || !proxyData.port) {
-                        throw new Error('代理信息不完整 (缺少 name, type, host, port)。');
+                    // Validate imported data, including type
+                    if (!connData.type || !['SSH', 'RDP', 'VNC'].includes(connData.type)) {
+                        throw new Error('缺少或无效的连接类型 (type)。');
                     }
-                    const cacheKey = `${proxyData.name}-${proxyData.type}-${proxyData.host}-${proxyData.port}`;
-                    if (proxyCache[cacheKey]) {
-                        proxyIdToUse = proxyCache[cacheKey];
-                    } else {
-                        const existingProxy = await ProxyRepository.findProxyByNameTypeHostPort(proxyData.name, proxyData.type, proxyData.host, proxyData.port);
-                        if (existingProxy) {
-                            proxyIdToUse = existingProxy.id;
-                        } else {
-                            const newProxyData: Omit<ProxyRepository.ProxyData, 'id' | 'created_at' | 'updated_at'> = {
-                                name: proxyData.name,
-                                type: proxyData.type,
-                                host: proxyData.host,
-                                port: proxyData.port,
-                                username: proxyData.username || null,
-                                auth_method: proxyData.auth_method || 'none',
-                                encrypted_password: proxyData.encrypted_password || null,
-                                encrypted_private_key: proxyData.encrypted_private_key || null,
-                                encrypted_passphrase: proxyData.encrypted_passphrase || null,
-                            };
-                            proxyIdToUse = await ProxyRepository.createProxy(newProxyData);
-                            console.log(`Service: 导入连接 ${connData.name}: 新代理 ${proxyData.name} 创建成功 (ID: ${proxyIdToUse})`);
+                    if (!connData.name || !connData.host || !connData.port || !connData.username) {
+                        throw new Error('缺少必要的连接字段 (name, host, port, username)。');
+                    }
+                    // Validate SSH specific fields only if type is SSH
+                    if (connData.type === 'SSH' && (!connData.auth_method || !['password', 'key'].includes(connData.auth_method))) {
+                         throw new Error('SSH 连接缺少有效的认证方式 (auth_method)。');
+                    }
+                    // RDP specific validation (e.g., password required) could be added here if needed
+
+
+                    let proxyIdToUse: number | null = null;
+
+                    if (connData.proxy) {
+                        const proxyData = connData.proxy;
+                        if (!proxyData.name || !proxyData.type || !proxyData.host || !proxyData.port) {
+                            throw new Error('代理信息不完整 (缺少 name, type, host, port)。');
                         }
-                        if (proxyIdToUse) proxyCache[cacheKey] = proxyIdToUse; 
+                        const cacheKey = `${proxyData.name}-${proxyData.type}-${proxyData.host}-${proxyData.port}`;
+                        if (proxyCache[cacheKey]) {
+                            proxyIdToUse = proxyCache[cacheKey];
+                        } else {
+                            const existingProxy = await ProxyRepository.findProxyByNameTypeHostPort(proxyData.name, proxyData.type, proxyData.host, proxyData.port);
+                            if (existingProxy) {
+                                proxyIdToUse = existingProxy.id;
+                            } else {
+                                const newProxyData: Omit<ProxyRepository.ProxyData, 'id' | 'created_at' | 'updated_at'> = {
+                                    name: proxyData.name,
+                                    type: proxyData.type,
+                                    host: proxyData.host,
+                                    port: proxyData.port,
+                                    username: proxyData.username || null,
+                                    auth_method: proxyData.auth_method || 'none',
+                                    encrypted_password: proxyData.encrypted_password || null,
+                                    encrypted_private_key: proxyData.encrypted_private_key || null,
+                                    encrypted_passphrase: proxyData.encrypted_passphrase || null,
+                                };
+                                proxyIdToUse = await ProxyRepository.createProxy(newProxyData);
+                                console.log(`Service: 导入连接 ${connData.name}: 新代理 ${proxyData.name} 创建成功 (ID: ${proxyIdToUse})`);
+                            }
+                            if (proxyIdToUse) proxyCache[cacheKey] = proxyIdToUse;
+                        }
                     }
-                }
 
-                // Prepare data for repository, ensuring correct auth_method for RDP
-                const authMethodForDb = (connData.type === 'RDP' || connData.type === 'VNC') ? 'password' : connData.auth_method!;
-                connectionsToInsert.push({
-                    name: connData.name,
-                    type: connData.type, // Add type
-                    host: connData.host,
-                    port: connData.port,
-                    username: connData.username,
-                    auth_method: authMethodForDb, // Use determined auth method
-                    encrypted_password: connData.encrypted_password || null,
-                    encrypted_private_key: connData.encrypted_private_key || null,
-                    encrypted_passphrase: connData.encrypted_passphrase || null,
-                    proxy_id: proxyIdToUse,
-                    tag_ids: connData.tag_ids || [],
-                    jump_chain: null, // 为 jump_chain 添加默认值
+                    // Prepare data for repository, ensuring correct auth_method for RDP
+                    const authMethodForDb = (connData.type === 'RDP' || connData.type === 'VNC') ? 'password' : connData.auth_method!;
+                    connectionsToInsert.push({
+                        name: connData.name,
+                        type: connData.type, // Add type
+                        host: connData.host,
+                        port: connData.port,
+                        username: connData.username,
+                        auth_method: authMethodForDb, // Use determined auth method
+                        encrypted_password: connData.encrypted_password || null,
+                        encrypted_private_key: connData.encrypted_private_key || null,
+                        encrypted_passphrase: connData.encrypted_passphrase || null,
+                        proxy_id: proxyIdToUse,
+                        tag_ids: connData.tag_ids || [],
+                        jump_chain: null, // 为 jump_chain 添加默认值
                 });
 
             } catch (connError: any) {
@@ -469,30 +468,24 @@ export const importConnections = async (fileBuffer: Buffer): Promise<ImportResul
             if (Array.isArray(originalTagIds) && originalTagIds.length > 0) {
                 const validTagIds = originalTagIds.filter((id: any) => typeof id === 'number' && id > 0);
                 if (validTagIds.length > 0) {
-                    const tagPromises = validTagIds.map(tagId =>
-                        runDb(db, insertTagSql, [result.connectionId, tagId]).catch(tagError => {
-                             console.warn(`Service: 导入连接 ${result.originalData.name}: 关联标签 ID ${tagId} 失败: ${tagError.message}`);
-                        })
-                    );
-                    await Promise.all(tagPromises);
+                    for (const tagId of validTagIds) {
+                        try {
+                            await runDb(db, insertTagSql, [result.connectionId, tagId]);
+                        } catch (tagError: any) {
+                            console.warn(`Service: 导入连接 ${result.originalData.name}: 关联标签 ID ${tagId} 失败: ${tagError.message}`);
+                        }
+                    }
                 }
             }
         }
 
 
 
-        await runDb(db, 'COMMIT');
-        console.log(`Service: 导入事务提交。成功: ${successCount}, 失败: ${failureCount}`);
-        return { successCount, failureCount, errors };
-
+            console.log(`Service: 导入事务提交。成功: ${successCount}, 失败: ${failureCount}`);
+            return { successCount, failureCount, errors };
+        });
     } catch (error: any) {
-
         console.error('Service: 导入事务处理出错，正在回滚:', error);
-        try {
-            await runDb(db, 'ROLLBACK');
-        } catch (rollbackErr: any) {
-            console.error("Service: 回滚事务失败:", rollbackErr);
-        }
         failureCount = importedData.length;
         successCount = 0;
         errors.push({ message: `事务处理失败: ${error.message}` });

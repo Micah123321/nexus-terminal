@@ -54,6 +54,11 @@
 **行为**: 后端新增 `packages/backend/src/login-credentials/` 业务域和 `login_credentials` 表，通过 `/api/v1/login-credentials` 提供登录凭证列表、创建、编辑、删除和详情读取接口；`connections` 表新增 `login_credential_id` 外键，连接创建、更新和未保存测试时都可以引用已保存凭证；运行时凭证解析则优先读取 `login_credentials` 的用户名、认证方式和加密凭证，再回退到连接自身保存的直填字段，因此编辑登录凭证后，引用它的连接在测试和实际连接时会自动使用新配置。  
 **结果**: 连接管理支持“直填凭证”和“引用已保存凭证”双轨并存，旧连接保持兼容，后续如需扩展凭证审计、共享或筛选能力，也有了独立数据模型承接。
 
+### SQLite 串行事务
+**条件**: 任意可能并发到达的写事务请求，例如脚本模式批量创建连接、批量标签操作、导入和快捷指令重排。
+**行为**: `database/transaction.ts` 提供 `runSerializedTransaction(work)`，在进程内通过 Promise 链互斥执行 `BEGIN → work(db) → COMMIT`，事务失败时尽力 `ROLLBACK` 后重新抛出原始错误；连接、标签、导入、快捷指令及其标签关联等所有原生前事务点均已迁移到该助手，事务体内不再使用 `Promise.all` 并发写。
+**结果**: 同一 SQLite 连接上的事务不再交错执行，`cannot commit - no transaction is active`、`cannot start a transaction within a transaction` 一类并发错误被消除。新增业务事务必须复用该助手，禁止手写 `BEGIN/COMMIT`。
+
 ### 标签批量删除
 **条件**: 前端连接管理页对一个或多个标签执行批量删除，并指定是否同时删除标签命中的连接。  
 **行为**: `packages/backend/src/tags/` 当前新增 `POST /api/v1/tags/bulk-delete`；控制器校验 `tag_ids` 与 `delete_connections` 后，将请求交给 `tag.service.ts` 与 `tag.repository.ts`。仓库层会在单个事务内先汇总命中的唯一连接集合，再按策略执行“仅删标签”或“先删连接、再删标签”，同时返回删除标签数、受影响连接数和实际删除连接数摘要；原有单标签删除也已复用同一底层批量删除事务。  

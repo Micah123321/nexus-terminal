@@ -1,5 +1,6 @@
 import { Database, Statement } from 'sqlite3';
 import { getDbInstance, runDb, getDb as getDbRow, allDb } from '../database/connection';
+import { runSerializedTransaction } from '../database/transaction';
 
 
 // 定义 Tag 类型 (可以共享到 types 文件)
@@ -117,71 +118,62 @@ export const deleteTagsBatch = async (tagIds: number[], deleteConnections: boole
         };
     }
 
-    const db = await getDbInstance();
     try {
-        await runDb(db, 'BEGIN TRANSACTION');
+        return await runSerializedTransaction(async (db) => {
+            const tagPlaceholders = buildInClause(normalizedTagIds.length);
+            const existingTags = await allDb<{ id: number }>(
+                db,
+                `SELECT id FROM tags WHERE id IN (${tagPlaceholders}) ORDER BY id ASC`,
+                normalizedTagIds,
+            );
+            const existingTagIds = existingTags.map((row) => row.id);
 
-        const tagPlaceholders = buildInClause(normalizedTagIds.length);
-        const existingTags = await allDb<{ id: number }>(
-            db,
-            `SELECT id FROM tags WHERE id IN (${tagPlaceholders}) ORDER BY id ASC`,
-            normalizedTagIds,
-        );
-        const existingTagIds = existingTags.map((row) => row.id);
+            if (existingTagIds.length === 0) {
+                return {
+                    deleted_tag_ids: [],
+                    deleted_tags_count: 0,
+                    affected_connection_ids: [],
+                    affected_connections_count: 0,
+                    deleted_connections_count: 0,
+                    delete_connections: Boolean(deleteConnections),
+                };
+            }
 
-        if (existingTagIds.length === 0) {
-            await runDb(db, 'COMMIT');
+            const existingTagPlaceholders = buildInClause(existingTagIds.length);
+            const affectedConnections = await allDb<{ connection_id: number }>(
+                db,
+                `SELECT DISTINCT connection_id FROM connection_tags WHERE tag_id IN (${existingTagPlaceholders}) ORDER BY connection_id ASC`,
+                existingTagIds,
+            );
+            const affectedConnectionIds = affectedConnections.map((row) => row.connection_id);
+
+            let deletedConnectionsCount = 0;
+            if (deleteConnections && affectedConnectionIds.length > 0) {
+                const connectionPlaceholders = buildInClause(affectedConnectionIds.length);
+                const deleteConnectionsResult = await runDb(
+                    db,
+                    `DELETE FROM connections WHERE id IN (${connectionPlaceholders})`,
+                    affectedConnectionIds,
+                );
+                deletedConnectionsCount = deleteConnectionsResult.changes ?? 0;
+            }
+
+            const deleteTagsResult = await runDb(
+                db,
+                `DELETE FROM tags WHERE id IN (${existingTagPlaceholders})`,
+                existingTagIds,
+            );
+
             return {
-                deleted_tag_ids: [],
-                deleted_tags_count: 0,
-                affected_connection_ids: [],
-                affected_connections_count: 0,
-                deleted_connections_count: 0,
+                deleted_tag_ids: existingTagIds,
+                deleted_tags_count: deleteTagsResult.changes ?? 0,
+                affected_connection_ids: affectedConnectionIds,
+                affected_connections_count: affectedConnectionIds.length,
+                deleted_connections_count: deletedConnectionsCount,
                 delete_connections: Boolean(deleteConnections),
             };
-        }
-
-        const existingTagPlaceholders = buildInClause(existingTagIds.length);
-        const affectedConnections = await allDb<{ connection_id: number }>(
-            db,
-            `SELECT DISTINCT connection_id FROM connection_tags WHERE tag_id IN (${existingTagPlaceholders}) ORDER BY connection_id ASC`,
-            existingTagIds,
-        );
-        const affectedConnectionIds = affectedConnections.map((row) => row.connection_id);
-
-        let deletedConnectionsCount = 0;
-        if (deleteConnections && affectedConnectionIds.length > 0) {
-            const connectionPlaceholders = buildInClause(affectedConnectionIds.length);
-            const deleteConnectionsResult = await runDb(
-                db,
-                `DELETE FROM connections WHERE id IN (${connectionPlaceholders})`,
-                affectedConnectionIds,
-            );
-            deletedConnectionsCount = deleteConnectionsResult.changes ?? 0;
-        }
-
-        const deleteTagsResult = await runDb(
-            db,
-            `DELETE FROM tags WHERE id IN (${existingTagPlaceholders})`,
-            existingTagIds,
-        );
-
-        await runDb(db, 'COMMIT');
-
-        return {
-            deleted_tag_ids: existingTagIds,
-            deleted_tags_count: deleteTagsResult.changes ?? 0,
-            affected_connection_ids: affectedConnectionIds,
-            affected_connections_count: affectedConnectionIds.length,
-            deleted_connections_count: deletedConnectionsCount,
-            delete_connections: Boolean(deleteConnections),
-        };
+        });
     } catch (err: any) {
-        try {
-            await runDb(db, 'ROLLBACK');
-        } catch (rollbackError: any) {
-            console.error('[仓库] 批量删除标签回滚失败:', rollbackError.message);
-        }
         console.error(`[仓库] 批量删除标签时出错:`, err.message);
         throw new Error(`批量删除标签失败: ${err.message}`);
     }
@@ -191,31 +183,21 @@ export const deleteTagsBatch = async (tagIds: number[], deleteConnections: boole
  * 更新标签与连接的关联关系
  */
 export const updateTagConnections = async (tagId: number, connectionIds: number[]): Promise<void> => {
-    const db = await getDbInstance();
     try {
-        // 开始事务
-        await runDb(db, 'BEGIN TRANSACTION');
+        await runSerializedTransaction(async (db) => {
+            // 1. 删除该标签旧的连接关联
+            const deleteSql = `DELETE FROM connection_tags WHERE tag_id = ?`;
+            await runDb(db, deleteSql, [tagId]);
 
-        // 1. 删除该标签旧的连接关联
-        const deleteSql = `DELETE FROM connection_tags WHERE tag_id = ?`;
-        await runDb(db, deleteSql, [tagId]);
-
-        // 2. 如果有新的连接 ID，则插入新的关联
-        if (connectionIds && connectionIds.length > 0) {
-            const insertSql = `INSERT INTO connection_tags (tag_id, connection_id) VALUES (?, ?)`;
-            // 使用 Promise.all 来并行执行插入操作，或者逐个执行
-            // 为简单起见，这里逐个执行，但对于大量数据，并行或批量插入更优
-            for (const connectionId of connectionIds) {
-                // 检查 connectionId 是否有效（例如，是否存在于 connections 表中）可以增加健壮性，但此处省略
-                await runDb(db, insertSql, [tagId, connectionId]);
+            // 2. 如果有新的连接 ID，则插入新的关联
+            if (connectionIds && connectionIds.length > 0) {
+                const insertSql = `INSERT INTO connection_tags (tag_id, connection_id) VALUES (?, ?)`;
+                for (const connectionId of connectionIds) {
+                    await runDb(db, insertSql, [tagId, connectionId]);
+                }
             }
-        }
-
-        // 提交事务
-        await runDb(db, 'COMMIT');
+        });
     } catch (err: any) {
-        // 如果发生错误，回滚事务
-        await runDb(db, 'ROLLBACK');
         console.error(`[仓库] 更新标签 ${tagId} 的连接关联时出错:`, err.message);
         throw new Error(`更新标签连接关联失败: ${err.message}`);
     }

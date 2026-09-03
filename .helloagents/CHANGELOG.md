@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- **[backend]**: 新增 `runSerializedTransaction` 串行事务助手，把连接、标签、导入和快捷命令等所有 `BEGIN/COMMIT` 事务迁移到同一互斥队列，修复脚本模式并发创建连接时报 `SQLITE_ERROR: cannot commit - no transaction is active` — by HelloAGENTS
+  - 类型: 快速修改（无方案包）
+  - 文件: packages/backend/src/database/transaction.ts 等 6 个文件
+
 - **[workspace-root]**: 为根 `docker-compose.yml` 固定项目名 `nexus-terminal`，并将更新文档改为先校验 compose 服务和镜像、再执行 `pull` 与 `up -d`，避免误在其他项目 compose 下操作容器 — by HelloAGENTS
   - 类型: 快速修改（无方案包）
   - 文件: docker-compose.yml, README.md, doc/README_EN.md
